@@ -14,6 +14,10 @@ const effectivenessRoutes = require("./routes/effectiveness");
 const tniRoutes = require("./routes/tni");
 const contentBankRoutes = require("./routes/contentBank");
 const userRoutes = require("./routes/users");
+const mandateRoutes = require("./routes/mandate");
+const sopBankRoutes = require("./routes/sopBank");
+const photoRoutes = require("./routes/photos");
+const inductionRoutes = require("./routes/induction");
 
 const app = express();
 
@@ -36,6 +40,10 @@ app.use("/api/effectiveness", effectivenessRoutes);
 app.use("/api/tni", tniRoutes);
 app.use("/api/content-bank", contentBankRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/mandate", mandateRoutes);
+app.use("/api/sop-bank", sopBankRoutes);
+app.use("/api/photos", photoRoutes);
+app.use("/api/induction", inductionRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "QLC server" }));
 

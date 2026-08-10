@@ -21,6 +21,15 @@ async function main() {
   const schema = fs.readFileSync(path.join(__dirname, "..", "schema.sql"), "utf8");
   await connection.query(schema);
 
+  // Safe to re-run: widens the questionnaires.category list for databases created before
+  // SOP support was added — CREATE TABLE IF NOT EXISTS above won't touch an existing table.
+  console.log("Applying migrations...");
+  try {
+    await connection.query(`ALTER TABLE questionnaires MODIFY COLUMN category ENUM('Evaluation','Effectiveness','SOP','Induction') NOT NULL`);
+  } catch (err) {
+    console.log("  (category migration skipped: " + err.message + ")");
+  }
+
   const [existing] = await connection.query(`SELECT id FROM users WHERE username = 'admin' LIMIT 1`);
   if (existing.length === 0) {
     console.log("Creating default admin account (username: admin / password: admin123)...");

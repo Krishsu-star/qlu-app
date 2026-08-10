@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS skill_matrix (
 CREATE TABLE IF NOT EXISTS questionnaires (
   id          VARCHAR(36) PRIMARY KEY,
   name        VARCHAR(255) NOT NULL,
-  category    ENUM('Evaluation','Effectiveness') NOT NULL,
+  category    ENUM('Evaluation','Effectiveness','SOP','Induction') NOT NULL,
   is_test     TINYINT(1) DEFAULT 0,
   pass_score  INT DEFAULT 70,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -184,6 +184,63 @@ CREATE TABLE IF NOT EXISTS tni (
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
   FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mandate (
+  id           VARCHAR(36) PRIMARY KEY DEFAULT 'singleton',
+  target_hours INT NOT NULL DEFAULT 40,
+  year         INT NOT NULL,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sop_documents (
+  id               VARCHAR(36) PRIMARY KEY,
+  title            VARCHAR(255) NOT NULL,
+  department       VARCHAR(128),
+  link             VARCHAR(1024),
+  file_path        VARCHAR(1024),
+  questionnaire_id VARCHAR(36) NULL,
+  uploaded_by      VARCHAR(255),
+  date_added       DATE,
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sop_assignments (
+  id              VARCHAR(36) PRIMARY KEY,
+  sop_id          VARCHAR(36) NOT NULL,
+  employee_id     VARCHAR(36) NOT NULL,
+  assigned_by     VARCHAR(255),
+  assignment_type ENUM('Induction','Annual Refresher') DEFAULT 'Induction',
+  assigned_date   DATE,
+  read_date       DATE NULL,
+  test_score      INT NULL,
+  completed_date  DATE NULL,
+  FOREIGN KEY (sop_id) REFERENCES sop_documents(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS induction_records (
+  id               VARCHAR(36) PRIMARY KEY,
+  employee_id      VARCHAR(36) NOT NULL,
+  topic            VARCHAR(128) NOT NULL,
+  trainer          VARCHAR(255),
+  session_date     DATE NULL,
+  from_time        TIME NULL,
+  to_time          TIME NULL,
+  questionnaire_id VARCHAR(36) NULL,
+  score            INT NULL,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS photos (
+  id          VARCHAR(36) PRIMARY KEY,
+  session_id  VARCHAR(36) NULL,
+  caption     VARCHAR(500),
+  file_path   VARCHAR(1024) NOT NULL,
+  uploaded_by VARCHAR(255),
+  date_added  DATE,
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS content_bank (
