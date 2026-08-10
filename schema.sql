@@ -1,0 +1,201 @@
+-- Quest Learning University (QLC) — database schema
+-- Run this once against an empty MySQL/MariaDB database (IT will create the database
+-- and a dedicated user; see DEPLOY.md). Character set is set explicitly so names,
+-- questions, and remarks in any language store correctly.
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE TABLE IF NOT EXISTS employees (
+  id            VARCHAR(36) PRIMARY KEY,
+  name          VARCHAR(255) NOT NULL,
+  associate_code VARCHAR(64) UNIQUE,
+  department    VARCHAR(128),
+  role_title    VARCHAR(255),
+  designation   VARCHAR(255),
+  grade         VARCHAR(32),
+  pay_group     VARCHAR(64),
+  org_name      VARCHAR(255),
+  doj           DATE NULL,
+  dob           DATE NULL,
+  manager       VARCHAR(255),
+  hod           VARCHAR(255),
+  email         VARCHAR(255),
+  mobile        VARCHAR(32),
+  qualification VARCHAR(255),
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS users (
+  id                  VARCHAR(36) PRIMARY KEY,
+  employee_id         VARCHAR(36) NULL,
+  username            VARCHAR(128) NOT NULL UNIQUE,
+  password_hash       VARCHAR(255) NOT NULL,
+  display_name        VARCHAR(255),
+  role                ENUM('Admin','HR','Manager','User') NOT NULL,
+  must_change_password TINYINT(1) DEFAULT 1,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS skills (
+  id          VARCHAR(36) PRIMARY KEY,
+  name        VARCHAR(255) NOT NULL,
+  category    ENUM('Technical','Behavioural') NOT NULL,
+  department  VARCHAR(128) NULL,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS skill_matrix (
+  id             VARCHAR(36) PRIMARY KEY,
+  employee_id    VARCHAR(36) NOT NULL,
+  skill_id       VARCHAR(36) NOT NULL,
+  required_level TINYINT NOT NULL DEFAULT 0,
+  current_level  TINYINT NOT NULL DEFAULT 0,
+  last_assessed  DATE NULL,
+  UNIQUE KEY uniq_emp_skill (employee_id, skill_id),
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS questionnaires (
+  id          VARCHAR(36) PRIMARY KEY,
+  name        VARCHAR(255) NOT NULL,
+  category    ENUM('Evaluation','Effectiveness') NOT NULL,
+  is_test     TINYINT(1) DEFAULT 0,
+  pass_score  INT DEFAULT 70,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS questions (
+  id               VARCHAR(36) PRIMARY KEY,
+  questionnaire_id VARCHAR(36) NOT NULL,
+  text             TEXT NOT NULL,
+  q_type           ENUM('mcq','yesno','rating5','score100','text') NOT NULL,
+  options_json     TEXT NULL,
+  correct_answer   VARCHAR(255) NULL,
+  sort_order       INT DEFAULT 0,
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id                            VARCHAR(36) PRIMARY KEY,
+  title                         VARCHAR(255) NOT NULL,
+  category                      ENUM('Technical','Behavioural') NOT NULL,
+  trainer                       VARCHAR(255),
+  session_date                  DATE NOT NULL,
+  start_time                    TIME,
+  end_time                      TIME,
+  venue                         VARCHAR(255),
+  max_seats                     INT DEFAULT 20,
+  skill_id                      VARCHAR(36) NULL,
+  description                   TEXT,
+  evaluation_questionnaire_id   VARCHAR(36) NULL,
+  effectiveness_questionnaire_id VARCHAR(36) NULL,
+  created_at                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL,
+  FOREIGN KEY (evaluation_questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL,
+  FOREIGN KEY (effectiveness_questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS attendance (
+  id          VARCHAR(36) PRIMARY KEY,
+  session_id  VARCHAR(36) NOT NULL,
+  employee_id VARCHAR(36) NOT NULL,
+  status      ENUM('Nominated','Attended','Absent','Partial') DEFAULT 'Nominated',
+  UNIQUE KEY uniq_session_emp (session_id, employee_id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Legacy (non-questionnaire) evaluation fields, kept for sessions without a linked questionnaire
+CREATE TABLE IF NOT EXISTS evaluations (
+  id              VARCHAR(36) PRIMARY KEY,
+  session_id      VARCHAR(36) NOT NULL,
+  employee_id     VARCHAR(36) NOT NULL,
+  pre_score       INT NULL,
+  post_score      INT NULL,
+  feedback_rating TINYINT NULL,
+  UNIQUE KEY uniq_session_emp_eval (session_id, employee_id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS effectiveness (
+  id             VARCHAR(36) PRIMARY KEY,
+  session_id     VARCHAR(36) NOT NULL,
+  employee_id    VARCHAR(36) NOT NULL,
+  status         ENUM('Effective','Partially Effective','Not Effective') NULL,
+  remarks        TEXT,
+  evaluated_date DATE NULL,
+  UNIQUE KEY uniq_session_emp_eff (session_id, employee_id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Questionnaire-based responses (Evaluation and Effectiveness both use this shape)
+CREATE TABLE IF NOT EXISTS eval_responses (
+  id          VARCHAR(36) PRIMARY KEY,
+  session_id  VARCHAR(36) NOT NULL,
+  employee_id VARCHAR(36) NOT NULL,
+  question_id VARCHAR(36) NOT NULL,
+  value       TEXT,
+  UNIQUE KEY uniq_response (session_id, employee_id, question_id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS eff_responses (
+  id          VARCHAR(36) PRIMARY KEY,
+  session_id  VARCHAR(36) NOT NULL,
+  employee_id VARCHAR(36) NOT NULL,
+  question_id VARCHAR(36) NOT NULL,
+  value       TEXT,
+  UNIQUE KEY uniq_eff_response (session_id, employee_id, question_id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS test_attempts (
+  id               VARCHAR(36) PRIMARY KEY,
+  session_id       VARCHAR(36) NOT NULL,
+  employee_id      VARCHAR(36) NOT NULL,
+  questionnaire_id VARCHAR(36) NOT NULL,
+  attempt_number   INT NOT NULL,
+  score            INT NOT NULL,
+  passed           TINYINT(1) NOT NULL,
+  attempt_date     DATE NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tni (
+  id          VARCHAR(36) PRIMARY KEY,
+  employee_id VARCHAR(36) NOT NULL,
+  skill_id    VARCHAR(36) NULL,
+  source      ENUM('Skill Gap','Manager Nomination','Appraisal Outcome','Compliance/Regulatory') NOT NULL,
+  priority    ENUM('High','Medium','Low') NOT NULL,
+  status      ENUM('Identified','Planned','Scheduled','Completed') NOT NULL DEFAULT 'Identified',
+  remarks     TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS content_bank (
+  id          VARCHAR(36) PRIMARY KEY,
+  title       VARCHAR(255) NOT NULL,
+  type        ENUM('Video','PPT','Document','Book','Other') NOT NULL,
+  skill_id    VARCHAR(36) NULL,
+  link        VARCHAR(1024),
+  file_path   VARCHAR(1024) NULL,
+  description TEXT,
+  date_added  DATE,
+  FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET FOREIGN_KEY_CHECKS = 1;

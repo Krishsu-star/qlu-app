@@ -1,0 +1,78 @@
+const express = require("express");
+const { randomUUID: uuidv4 } = require("crypto");
+const pool = require("../db");
+const { requireAuth } = require("../authMiddleware");
+const { scopeForUser } = require("../utils/scope");
+
+const router = express.Router();
+
+const PROFICIENCY_LABELS = ["None", "Basic", "Working", "Proficient", "Expert"];
+
+// GET /api/skill-matrix — full matrix rows, scoped by role
+router.get("/", requireAuth, async (req, res) => {
+  const scope = await scopeForUser(req.user);
+  let sql = `SELECT sm.*, e.name AS employee_name, e.department, s.name AS skill_name, s.category
+             FROM skill_matrix sm
+             JOIN employees e ON e.id = sm.employee_id
+             JOIN skills s ON s.id = sm.skill_id`;
+  const [rows] = await pool.query(sql);
+  const filtered = scope ? rows.filter((r) => scope.has(r.employee_id)) : rows;
+  res.json(filtered.map((r) => ({
+    id: r.id, employeeId: r.employee_id, skillId: r.skill_id,
+    required: r.required_level, current: r.current_level, lastAssessed: r.last_assessed,
+    employeeName: r.employee_name, department: r.department, skillName: r.skill_name, category: r.category,
+  })));
+});
+
+// GET /api/skill-matrix/gap-analysis — derived: only rows where current < required
+router.get("/gap-analysis", requireAuth, async (req, res) => {
+  const scope = await scopeForUser(req.user);
+  const [rows] = await pool.query(
+    `SELECT sm.*, e.name AS employee_name, e.department, s.name AS skill_name, s.category
+     FROM skill_matrix sm
+     JOIN employees e ON e.id = sm.employee_id
+     JOIN skills s ON s.id = sm.skill_id
+     WHERE sm.current_level < sm.required_level`
+  );
+  const filtered = (scope ? rows.filter((r) => scope.has(r.employee_id)) : rows)
+    .map((r) => ({
+      employeeId: r.employee_id, employeeName: r.employee_name, department: r.department,
+      skillName: r.skill_name, category: r.category,
+      required: PROFICIENCY_LABELS[r.required_level], current: PROFICIENCY_LABELS[r.current_level],
+      gap: r.required_level - r.current_level,
+    }))
+    .sort((a, b) => b.gap - a.gap);
+  res.json(filtered);
+});
+
+// PUT /api/skill-matrix  body: { employeeId, skillId, field: "required"|"current", value }
+// Managers can only update "current" and only for their own team (enforced here, mirroring the local app's rule)
+router.put("/", requireAuth, async (req, res) => {
+  const { employeeId, skillId, field, value } = req.body;
+  if (!["required", "current"].includes(field)) return res.status(400).json({ error: "Invalid field." });
+
+  if (req.user.role === "User") return res.status(403).json({ error: "View only." });
+  if (req.user.role === "Manager") {
+    if (field === "required") return res.status(403).json({ error: "Managers can update Current proficiency only." });
+    const scope = await scopeForUser(req.user);
+    if (!scope.has(employeeId)) return res.status(403).json({ error: "Not your team member." });
+  }
+
+  const column = field === "required" ? "required_level" : "current_level";
+  const [existing] = await pool.query(`SELECT id FROM skill_matrix WHERE employee_id = ? AND skill_id = ?`, [employeeId, skillId]);
+  if (existing[0]) {
+    const extra = field === "current" ? ", last_assessed = CURDATE()" : "";
+    await pool.query(`UPDATE skill_matrix SET ${column} = ? ${extra} WHERE id = ?`, [value, existing[0].id]);
+  } else {
+    const id = uuidv4();
+    const requiredVal = field === "required" ? value : 3;
+    const currentVal = field === "current" ? value : 0;
+    await pool.query(
+      `INSERT INTO skill_matrix (id, employee_id, skill_id, required_level, current_level, last_assessed) VALUES (?,?,?,?,?,CURDATE())`,
+      [id, employeeId, skillId, requiredVal, currentVal]
+    );
+  }
+  res.json({ ok: true });
+});
+
+module.exports = router;
