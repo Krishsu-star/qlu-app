@@ -18,6 +18,7 @@ const mandateRoutes = require("./routes/mandate");
 const sopBankRoutes = require("./routes/sopBank");
 const photoRoutes = require("./routes/photos");
 const inductionRoutes = require("./routes/induction");
+const trainerQualRoutes = require("./routes/trainerQual");
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use("/api/mandate", mandateRoutes);
 app.use("/api/sop-bank", sopBankRoutes);
 app.use("/api/photos", photoRoutes);
 app.use("/api/induction", inductionRoutes);
+app.use("/api/trainer-qual", trainerQualRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "QLC server" }));
 

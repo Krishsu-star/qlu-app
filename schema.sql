@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
   username            VARCHAR(128) NOT NULL UNIQUE,
   password_hash       VARCHAR(255) NOT NULL,
   display_name        VARCHAR(255),
-  role                ENUM('Admin','HR','Manager','User') NOT NULL,
+  role                ENUM('Admin','HR','Manager','User','QA','SiteHead') NOT NULL,
   must_change_password TINYINT(1) DEFAULT 1,
   created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS skill_matrix (
 CREATE TABLE IF NOT EXISTS questionnaires (
   id          VARCHAR(36) PRIMARY KEY,
   name        VARCHAR(255) NOT NULL,
-  category    ENUM('Evaluation','Effectiveness','SOP','Induction') NOT NULL,
+  category    ENUM('Evaluation','Effectiveness','SOP','Induction','Learning Academy') NOT NULL,
   is_test     TINYINT(1) DEFAULT 0,
   pass_score  INT DEFAULT 70,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -233,6 +233,21 @@ CREATE TABLE IF NOT EXISTS induction_records (
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS trainer_assessments (
+  id                VARCHAR(36) PRIMARY KEY,
+  trainer_name      VARCHAR(255) NOT NULL,
+  trainer_type      ENUM('Internal','External') NOT NULL,
+  subject           VARCHAR(255),
+  assessed_by       VARCHAR(255),
+  assessment_date   DATE,
+  criteria          JSON,
+  status            ENUM('Draft','Pending Approval','Approved','Rejected') DEFAULT 'Draft',
+  qa_approval       JSON,
+  site_head_approval JSON,
+  hr_approval       JSON,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS photos (
   id          VARCHAR(36) PRIMARY KEY,
   session_id  VARCHAR(36) NULL,
@@ -244,15 +259,37 @@ CREATE TABLE IF NOT EXISTS photos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS content_bank (
-  id          VARCHAR(36) PRIMARY KEY,
-  title       VARCHAR(255) NOT NULL,
-  type        ENUM('Video','PPT','Document','Book','Other') NOT NULL,
-  skill_id    VARCHAR(36) NULL,
-  link        VARCHAR(1024),
-  file_path   VARCHAR(1024) NULL,
-  description TEXT,
-  date_added  DATE,
-  FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL
+  id               VARCHAR(36) PRIMARY KEY,
+  title            VARCHAR(255) NOT NULL,
+  type             ENUM('Video','PPT','Document','Book','Other','Video Course','Reading Course') NOT NULL,
+  skill_id         VARCHAR(36) NULL,
+  academy          VARCHAR(128) NULL,
+  questionnaire_id VARCHAR(36) NULL,
+  link             VARCHAR(1024),
+  file_path        VARCHAR(1024) NULL,
+  description      TEXT,
+  date_added       DATE,
+  FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL,
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS course_completions (
+  id             VARCHAR(36) PRIMARY KEY,
+  employee_id    VARCHAR(36) NOT NULL,
+  content_id     VARCHAR(36) NOT NULL,
+  completed_date DATE,
+  score          INT NULL,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (content_id) REFERENCES content_bank(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS certificate_settings (
+  id                VARCHAR(36) PRIMARY KEY DEFAULT 'singleton',
+  site_head_name    VARCHAR(255),
+  site_head_sig     VARCHAR(1024),
+  hr_name           VARCHAR(255),
+  hr_sig            VARCHAR(1024),
+  appreciation_text TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -25,9 +25,29 @@ async function main() {
   // SOP support was added — CREATE TABLE IF NOT EXISTS above won't touch an existing table.
   console.log("Applying migrations...");
   try {
-    await connection.query(`ALTER TABLE questionnaires MODIFY COLUMN category ENUM('Evaluation','Effectiveness','SOP','Induction') NOT NULL`);
+    await connection.query(`ALTER TABLE questionnaires MODIFY COLUMN category ENUM('Evaluation','Effectiveness','SOP','Induction','Learning Academy') NOT NULL`);
   } catch (err) {
     console.log("  (category migration skipped: " + err.message + ")");
+  }
+  try {
+    await connection.query(`ALTER TABLE users MODIFY COLUMN role ENUM('Admin','HR','Manager','User','QA','SiteHead') NOT NULL`);
+  } catch (err) {
+    console.log("  (role migration skipped: " + err.message + ")");
+  }
+  try {
+    await connection.query(`ALTER TABLE content_bank MODIFY COLUMN type ENUM('Video','PPT','Document','Book','Other','Video Course','Reading Course') NOT NULL`);
+  } catch (err) {
+    console.log("  (content_bank type migration skipped: " + err.message + ")");
+  }
+  try {
+    await connection.query(`ALTER TABLE content_bank ADD COLUMN academy VARCHAR(128) NULL`);
+  } catch (err) {
+    console.log("  (content_bank.academy migration skipped: " + err.message + ")");
+  }
+  try {
+    await connection.query(`ALTER TABLE content_bank ADD COLUMN questionnaire_id VARCHAR(36) NULL`);
+  } catch (err) {
+    console.log("  (content_bank.questionnaire_id migration skipped: " + err.message + ")");
   }
 
   const [existing] = await connection.query(`SELECT id FROM users WHERE username = 'admin' LIMIT 1`);
