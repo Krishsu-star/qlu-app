@@ -33,7 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
         COALESCE(SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time)) / 60, 0) AS actual_hours
        FROM employees e
        LEFT JOIN attendance a ON a.employee_id = e.id AND a.status = 'Attended'
-       LEFT JOIN sessions s ON s.id = a.session_id AND s.date BETWEEN ? AND ?
+       LEFT JOIN sessions s ON s.id = a.session_id AND s.session_date BETWEEN ? AND ?
        WHERE 1=1 ${employeeFilter}
        GROUP BY e.id, e.name, e.department`,
       params
