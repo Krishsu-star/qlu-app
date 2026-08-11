@@ -3,6 +3,16 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 
+// A single flaky moment reaching a free-tier database should fail that one request,
+// not take down the whole server (Node terminates on unhandled rejections by default).
+// This is the safety net for any query that isn't already wrapped in try/catch.
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection (server stays up):", err?.message || err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (server stays up):", err?.message || err);
+});
+
 const authRoutes = require("./routes/auth");
 const employeeRoutes = require("./routes/employees");
 const skillRoutes = require("./routes/skills");
@@ -20,6 +30,7 @@ const photoRoutes = require("./routes/photos");
 const inductionRoutes = require("./routes/induction");
 const trainerQualRoutes = require("./routes/trainerQual");
 const surveyRoutes = require("./routes/survey");
+const reportsRoutes = require("./routes/reports");
 
 const app = express();
 
@@ -48,6 +59,7 @@ app.use("/api/photos", photoRoutes);
 app.use("/api/induction", inductionRoutes);
 app.use("/api/trainer-qual", trainerQualRoutes);
 app.use("/api/survey", surveyRoutes);
+app.use("/api/reports", reportsRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "QLC server" }));
 
