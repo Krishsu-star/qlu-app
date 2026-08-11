@@ -19,6 +19,7 @@ const sopBankRoutes = require("./routes/sopBank");
 const photoRoutes = require("./routes/photos");
 const inductionRoutes = require("./routes/induction");
 const trainerQualRoutes = require("./routes/trainerQual");
+const surveyRoutes = require("./routes/survey");
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use("/api/sop-bank", sopBankRoutes);
 app.use("/api/photos", photoRoutes);
 app.use("/api/induction", inductionRoutes);
 app.use("/api/trainer-qual", trainerQualRoutes);
+app.use("/api/survey", surveyRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "QLC server" }));
 

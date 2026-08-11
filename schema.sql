@@ -292,4 +292,78 @@ CREATE TABLE IF NOT EXISTS certificate_settings (
   appreciation_text TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS surveys (
+  id                  VARCHAR(36) PRIMARY KEY,
+  name                VARCHAR(255) NOT NULL,
+  type                VARCHAR(64) NOT NULL,
+  purpose             TEXT,
+  start_date          DATE,
+  end_date            DATE,
+  anonymous           TINYINT(1) DEFAULT 0,
+  target_type         VARCHAR(32) DEFAULT 'All',
+  target_departments  JSON,
+  target_grades       JSON,
+  target_employee_ids JSON,
+  questions           JSON,
+  status              ENUM('Draft','Pending Approval','Approved','Active','Closed','Archived') DEFAULT 'Draft',
+  created_by          VARCHAR(255),
+  created_date        DATE,
+  approved_by         VARCHAR(255),
+  approval_date       DATE NULL,
+  published_date      DATE NULL,
+  closed_date         DATE NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS survey_assignments (
+  id              VARCHAR(36) PRIMARY KEY,
+  survey_id       VARCHAR(36) NOT NULL,
+  employee_id     VARCHAR(36) NOT NULL,
+  assigned_date   DATE,
+  status          ENUM('Not Started','In Progress','Completed') DEFAULT 'Not Started',
+  completion_date DATE NULL,
+  FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS survey_responses (
+  id               VARCHAR(36) PRIMARY KEY,
+  survey_id        VARCHAR(36) NOT NULL,
+  employee_id      VARCHAR(36) NULL,
+  anonymous_token  VARCHAR(64) NULL,
+  start_datetime   DATETIME,
+  submit_datetime  DATETIME NULL,
+  status           ENUM('In Progress','Completed') DEFAULT 'In Progress',
+  FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS survey_response_details (
+  id           VARCHAR(36) PRIMARY KEY,
+  response_id  VARCHAR(36) NOT NULL,
+  question_id  VARCHAR(64) NOT NULL,
+  value        JSON,
+  FOREIGN KEY (response_id) REFERENCES survey_responses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS survey_action_plans (
+  id           VARCHAR(36) PRIMARY KEY,
+  survey_id    VARCHAR(36) NOT NULL,
+  finding      VARCHAR(500),
+  action       TEXT,
+  owner        VARCHAR(255),
+  target_date  DATE NULL,
+  priority     VARCHAR(16) DEFAULT 'Medium',
+  status       VARCHAR(32) DEFAULT 'Open',
+  remarks      TEXT,
+  FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS survey_audit_log (
+  id         VARCHAR(36) PRIMARY KEY,
+  survey_id  VARCHAR(36) NOT NULL,
+  action     VARCHAR(255),
+  user       VARCHAR(255),
+  date       DATE,
+  FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;
