@@ -10,6 +10,9 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   charset: "utf8mb4_general_ci",
+  connectTimeout: 20000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
   // Managed cloud databases (e.g. Aiven) require an encrypted connection.
   // Set DB_SSL=true in .env when connecting to one; leave unset for a local NAS database.
   ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
