@@ -18,4 +18,11 @@ const pool = mysql.createPool({
   ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
 });
 
+// A fatal connection error (e.g. a momentary DNS blip reaching a free-tier database) is
+// normally emitted on the pool itself, not through a query's promise — without a listener
+// here, that alone can crash the whole process regardless of try/catch elsewhere.
+pool.on("error", (err) => {
+  console.error("Database pool error (server stays up):", err.message);
+});
+
 module.exports = pool;
