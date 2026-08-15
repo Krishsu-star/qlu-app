@@ -53,10 +53,11 @@ CREATE TABLE IF NOT EXISTS skill_matrix (
   id             VARCHAR(36) PRIMARY KEY,
   employee_id    VARCHAR(36) NOT NULL,
   skill_id       VARCHAR(36) NOT NULL,
+  year           INT NOT NULL DEFAULT (YEAR(CURDATE())),
   required_level TINYINT NOT NULL DEFAULT 0,
   current_level  TINYINT NOT NULL DEFAULT 0,
   last_assessed  DATE NULL,
-  UNIQUE KEY uniq_emp_skill (employee_id, skill_id),
+  UNIQUE KEY uniq_emp_skill_year (employee_id, skill_id, year),
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
   FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -179,6 +180,7 @@ CREATE TABLE IF NOT EXISTS tni (
   id          VARCHAR(36) PRIMARY KEY,
   employee_id VARCHAR(36) NOT NULL,
   skill_id    VARCHAR(36) NULL,
+  year        INT NOT NULL DEFAULT (YEAR(CURDATE())),
   source      ENUM('Skill Gap','Manager Nomination','Appraisal Outcome','Compliance/Regulatory') NOT NULL,
   priority    ENUM('High','Medium','Low') NOT NULL,
   status      ENUM('Identified','Planned','Scheduled','Completed') NOT NULL DEFAULT 'Identified',

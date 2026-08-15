@@ -32,6 +32,10 @@ async function runStartupMigrations() {
   const migrations = [
     `ALTER TABLE employees ADD COLUMN separation_date DATE NULL`,
     `ALTER TABLE employees ADD COLUMN employment_status ENUM('Active','Inactive') NOT NULL DEFAULT 'Active'`,
+    `ALTER TABLE skill_matrix ADD COLUMN year INT NOT NULL DEFAULT ${new Date().getFullYear()}`,
+    `ALTER TABLE skill_matrix DROP INDEX uniq_emp_skill`,
+    `ALTER TABLE skill_matrix ADD UNIQUE KEY uniq_emp_skill_year (employee_id, skill_id, year)`,
+    `ALTER TABLE tni ADD COLUMN year INT NOT NULL DEFAULT ${new Date().getFullYear()}`,
   ];
   for (const sql of migrations) {
     try {
