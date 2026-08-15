@@ -42,11 +42,13 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS skills (
-  id          VARCHAR(36) PRIMARY KEY,
-  name        VARCHAR(255) NOT NULL,
-  category    ENUM('Technical','Behavioural') NOT NULL,
-  department  VARCHAR(128) NULL,
-  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id             VARCHAR(36) PRIMARY KEY,
+  name           VARCHAR(255) NOT NULL,
+  category       ENUM('Technical','Behavioural','Mandatory') NOT NULL,
+  department     VARCHAR(128) NULL,
+  criticality    ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal',
+  level_guidance TEXT NULL,
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS skill_matrix (
@@ -85,7 +87,7 @@ CREATE TABLE IF NOT EXISTS questions (
 CREATE TABLE IF NOT EXISTS sessions (
   id                            VARCHAR(36) PRIMARY KEY,
   title                         VARCHAR(255) NOT NULL,
-  category                      ENUM('Technical','Behavioural') NOT NULL,
+  category                      ENUM('Technical','Behavioural','Mandatory') NOT NULL,
   trainer                       VARCHAR(255),
   session_date                  DATE NOT NULL,
   start_time                    TIME,

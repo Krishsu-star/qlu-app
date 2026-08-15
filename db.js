@@ -36,6 +36,10 @@ async function runStartupMigrations() {
     `ALTER TABLE skill_matrix DROP INDEX uniq_emp_skill`,
     `ALTER TABLE skill_matrix ADD UNIQUE KEY uniq_emp_skill_year (employee_id, skill_id, year)`,
     `ALTER TABLE tni ADD COLUMN year INT NOT NULL DEFAULT ${new Date().getFullYear()}`,
+    `ALTER TABLE skills MODIFY COLUMN category ENUM('Technical','Behavioural','Mandatory') NOT NULL`,
+    `ALTER TABLE sessions MODIFY COLUMN category ENUM('Technical','Behavioural','Mandatory') NOT NULL`,
+    `ALTER TABLE skills ADD COLUMN criticality ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal'`,
+    `ALTER TABLE skills ADD COLUMN level_guidance TEXT NULL`,
   ];
   for (const sql of migrations) {
     try {
