@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS employees (
   email         VARCHAR(255),
   mobile        VARCHAR(32),
   qualification VARCHAR(255),
+  separation_date DATE NULL,
+  employment_status ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

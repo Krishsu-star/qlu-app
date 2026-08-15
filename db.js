@@ -25,4 +25,23 @@ pool.on("error", (err) => {
   console.error("Database pool error (server stays up):", err.message);
 });
 
+// Auto-apply small, safe database changes on startup, so a plain redeploy
+// is enough — no separate manual script needs to be run. Each one is
+// wrapped so a column that already exists just gets skipped quietly.
+async function runStartupMigrations() {
+  const migrations = [
+    `ALTER TABLE employees ADD COLUMN separation_date DATE NULL`,
+    `ALTER TABLE employees ADD COLUMN employment_status ENUM('Active','Inactive') NOT NULL DEFAULT 'Active'`,
+  ];
+  for (const sql of migrations) {
+    try {
+      await pool.query(sql);
+      console.log("Migration applied:", sql);
+    } catch (err) {
+      console.log("Migration skipped (already applied or not needed):", err.message);
+    }
+  }
+}
+runStartupMigrations();
+
 module.exports = pool;
