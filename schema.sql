@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS skills (
   name           VARCHAR(255) NOT NULL,
   category       ENUM('Technical','Behavioural','Mandatory') NOT NULL,
   department     VARCHAR(128) NULL,
+  designation    VARCHAR(128) NULL,
   criticality    ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal',
   level_guidance TEXT NULL,
   created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP

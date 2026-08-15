@@ -40,6 +40,7 @@ async function runStartupMigrations() {
     `ALTER TABLE sessions MODIFY COLUMN category ENUM('Technical','Behavioural','Mandatory') NOT NULL`,
     `ALTER TABLE skills ADD COLUMN criticality ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal'`,
     `ALTER TABLE skills ADD COLUMN level_guidance TEXT NULL`,
+    `ALTER TABLE skills ADD COLUMN designation VARCHAR(128) NULL`,
   ];
   for (const sql of migrations) {
     try {

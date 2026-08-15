@@ -10,7 +10,7 @@ function rowToSkill(r) {
   if (r.level_guidance) {
     try { levelGuidance = JSON.parse(r.level_guidance); } catch { levelGuidance = null; }
   }
-  return { id: r.id, name: r.name, category: r.category, department: r.department, criticality: r.criticality || "Normal", levelGuidance };
+  return { id: r.id, name: r.name, category: r.category, department: r.department, designation: r.designation, criticality: r.criticality || "Normal", levelGuidance };
 }
 
 async function getManagerDept(userId, employeeId) {
@@ -31,6 +31,7 @@ router.post("/", requireAuth, requireRole("Admin", "HR", "Manager"), async (req,
   const { name, category } = req.body;
   const criticality = req.body.criticality || "Normal";
   const levelGuidance = req.body.levelGuidance ? JSON.stringify(req.body.levelGuidance) : null;
+  const designation = req.body.designation || null;
   let department = req.body.department || null;
 
   if (req.user.role === "Manager") {
@@ -39,7 +40,7 @@ router.post("/", requireAuth, requireRole("Admin", "HR", "Manager"), async (req,
   }
 
   const id = uuidv4();
-  await pool.query(`INSERT INTO skills (id, name, category, department, criticality, level_guidance) VALUES (?,?,?,?,?,?)`, [id, name, category, department, criticality, levelGuidance]);
+  await pool.query(`INSERT INTO skills (id, name, category, department, designation, criticality, level_guidance) VALUES (?,?,?,?,?,?,?)`, [id, name, category, department, designation, criticality, levelGuidance]);
   res.status(201).json({ id });
 });
 
@@ -48,6 +49,7 @@ router.put("/:id", requireAuth, requireRole("Admin", "HR", "Manager"), async (re
   const { name, category } = req.body;
   const criticality = req.body.criticality || "Normal";
   const levelGuidance = req.body.levelGuidance ? JSON.stringify(req.body.levelGuidance) : null;
+  const designation = req.body.designation || null;
 
   if (req.user.role === "Manager") {
     const dept = await getManagerDept(req.user.id, req.user.employeeId);
@@ -55,12 +57,12 @@ router.put("/:id", requireAuth, requireRole("Admin", "HR", "Manager"), async (re
     if (!rows[0] || rows[0].department !== dept) {
       return res.status(403).json({ error: "You can only edit skills belonging to your own department." });
     }
-    await pool.query(`UPDATE skills SET name=?, category=?, criticality=?, level_guidance=? WHERE id=?`, [name, category, criticality, levelGuidance, req.params.id]);
+    await pool.query(`UPDATE skills SET name=?, category=?, designation=?, criticality=?, level_guidance=? WHERE id=?`, [name, category, designation, criticality, levelGuidance, req.params.id]);
     return res.json({ ok: true });
   }
 
   const department = req.body.department;
-  await pool.query(`UPDATE skills SET name=?, category=?, department=?, criticality=?, level_guidance=? WHERE id=?`, [name, category, department || null, criticality, levelGuidance, req.params.id]);
+  await pool.query(`UPDATE skills SET name=?, category=?, department=?, designation=?, criticality=?, level_guidance=? WHERE id=?`, [name, category, department || null, designation, criticality, levelGuidance, req.params.id]);
   res.json({ ok: true });
 });
 
@@ -83,7 +85,7 @@ router.post("/bulk-import", requireAuth, requireRole("Admin", "HR"), async (req,
   let imported = 0;
   for (const r of rows) {
     if (!r.name) continue;
-    await pool.query(`INSERT INTO skills (id, name, category, department, criticality) VALUES (?,?,?,?,?)`, [uuidv4(), r.name, r.category || "Technical", r.department || null, r.criticality || "Normal"]);
+    await pool.query(`INSERT INTO skills (id, name, category, department, designation, criticality) VALUES (?,?,?,?,?,?)`, [uuidv4(), r.name, r.category || "Technical", r.department || null, r.designation || null, r.criticality || "Normal"]);
     imported++;
   }
   res.json({ imported });
