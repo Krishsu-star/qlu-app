@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS skills (
   category       ENUM('Technical','Behavioural','Mandatory') NOT NULL,
   department     VARCHAR(128) NULL,
   designation    VARCHAR(128) NULL,
+  owner_department VARCHAR(128) NULL,
   requires_qualification TINYINT(1) NOT NULL DEFAULT 0,
   criticality    ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal',
   level_guidance TEXT NULL,

@@ -48,6 +48,11 @@ async function runStartupMigrations() {
     `ALTER TABLE skill_matrix ADD COLUMN next_review_date DATE NULL`,
     `ALTER TABLE skill_matrix ADD COLUMN qual_remarks TEXT NULL`,
     `ALTER TABLE skill_matrix ADD COLUMN evidence_note VARCHAR(500) NULL`,
+    `ALTER TABLE skills ADD COLUMN owner_department VARCHAR(128) NULL`,
+    // Best-effort backfill: for existing skills, assume whoever they were already scoped to is
+    // also who maintains them — preserves today's Manager-edit behavior for skills that already
+    // exist. New skills going forward get an explicit, independent owner (see routes/skills.js).
+    `UPDATE skills SET owner_department = department WHERE owner_department IS NULL AND department IS NOT NULL`,
   ];
   for (const sql of migrations) {
     try {
