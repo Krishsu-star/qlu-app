@@ -41,6 +41,13 @@ async function runStartupMigrations() {
     `ALTER TABLE skills ADD COLUMN criticality ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal'`,
     `ALTER TABLE skills ADD COLUMN level_guidance TEXT NULL`,
     `ALTER TABLE skills ADD COLUMN designation VARCHAR(128) NULL`,
+    `ALTER TABLE skills ADD COLUMN requires_qualification TINYINT(1) NOT NULL DEFAULT 0`,
+    `ALTER TABLE skill_matrix ADD COLUMN qualification_status ENUM('Not Started','Trained','Assessed','Qualified','Authorized') NOT NULL DEFAULT 'Not Started'`,
+    `ALTER TABLE skill_matrix ADD COLUMN assessor VARCHAR(255) NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN assessment_date DATE NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN next_review_date DATE NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN qual_remarks TEXT NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN evidence_note VARCHAR(500) NULL`,
   ];
   for (const sql of migrations) {
     try {

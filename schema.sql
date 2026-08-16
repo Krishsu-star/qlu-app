@@ -47,19 +47,26 @@ CREATE TABLE IF NOT EXISTS skills (
   category       ENUM('Technical','Behavioural','Mandatory') NOT NULL,
   department     VARCHAR(128) NULL,
   designation    VARCHAR(128) NULL,
+  requires_qualification TINYINT(1) NOT NULL DEFAULT 0,
   criticality    ENUM('Critical','Major','Normal') NOT NULL DEFAULT 'Normal',
   level_guidance TEXT NULL,
   created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS skill_matrix (
-  id             VARCHAR(36) PRIMARY KEY,
-  employee_id    VARCHAR(36) NOT NULL,
-  skill_id       VARCHAR(36) NOT NULL,
-  year           INT NOT NULL DEFAULT (YEAR(CURDATE())),
-  required_level TINYINT NOT NULL DEFAULT 0,
-  current_level  TINYINT NOT NULL DEFAULT 0,
-  last_assessed  DATE NULL,
+  id                  VARCHAR(36) PRIMARY KEY,
+  employee_id         VARCHAR(36) NOT NULL,
+  skill_id            VARCHAR(36) NOT NULL,
+  year                INT NOT NULL DEFAULT (YEAR(CURDATE())),
+  required_level      TINYINT NOT NULL DEFAULT 0,
+  current_level       TINYINT NOT NULL DEFAULT 0,
+  last_assessed       DATE NULL,
+  qualification_status ENUM('Not Started','Trained','Assessed','Qualified','Authorized') NOT NULL DEFAULT 'Not Started',
+  assessor            VARCHAR(255) NULL,
+  assessment_date     DATE NULL,
+  next_review_date    DATE NULL,
+  qual_remarks        TEXT NULL,
+  evidence_note       VARCHAR(500) NULL,
   UNIQUE KEY uniq_emp_skill_year (employee_id, skill_id, year),
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
   FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE

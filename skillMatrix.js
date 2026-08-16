@@ -24,6 +24,9 @@ router.get("/", requireAuth, async (req, res) => {
     id: r.id, employeeId: r.employee_id, skillId: r.skill_id, year: r.year,
     required: r.required_level, current: r.current_level, lastAssessed: r.last_assessed,
     employeeName: r.employee_name, department: r.department, skillName: r.skill_name, category: r.category,
+    qualificationStatus: r.qualification_status || "Not Started", assessor: r.assessor,
+    assessmentDate: r.assessment_date, nextReviewDate: r.next_review_date,
+    qualRemarks: r.qual_remarks, evidenceNote: r.evidence_note,
   })));
 });
 
@@ -75,6 +78,37 @@ router.put("/", requireAuth, async (req, res) => {
     await pool.query(
       `INSERT INTO skill_matrix (id, employee_id, skill_id, year, required_level, current_level, last_assessed) VALUES (?,?,?,?,?,?,CURDATE())`,
       [id, employeeId, skillId, year, requiredVal, currentVal]
+    );
+  }
+  res.json({ ok: true });
+});
+
+// PUT /api/skill-matrix/qualification  body: { employeeId, skillId, year, qualificationStatus, assessor,
+// assessmentDate, nextReviewDate, qualRemarks, evidenceNote }
+// Same permission rule as the level-setting endpoint above: Admin/HR any employee, Manager own team only.
+router.put("/qualification", requireAuth, async (req, res) => {
+  const { employeeId, skillId, qualificationStatus, assessor, assessmentDate, nextReviewDate, qualRemarks, evidenceNote } = req.body;
+  const year = req.body.year || new Date().getFullYear();
+  const validStatuses = ["Not Started", "Trained", "Assessed", "Qualified", "Authorized"];
+  if (qualificationStatus && !validStatuses.includes(qualificationStatus)) return res.status(400).json({ error: "Invalid qualification status." });
+
+  if (req.user.role === "User") return res.status(403).json({ error: "View only." });
+  if (req.user.role === "Manager") {
+    const scope = await scopeForUser(req.user);
+    if (!scope.has(employeeId)) return res.status(403).json({ error: "Not your team member." });
+  }
+
+  const [existing] = await pool.query(`SELECT id FROM skill_matrix WHERE employee_id = ? AND skill_id = ? AND year = ?`, [employeeId, skillId, year]);
+  if (existing[0]) {
+    await pool.query(
+      `UPDATE skill_matrix SET qualification_status=?, assessor=?, assessment_date=?, next_review_date=?, qual_remarks=?, evidence_note=? WHERE id=?`,
+      [qualificationStatus || "Not Started", assessor || null, assessmentDate || null, nextReviewDate || null, qualRemarks || null, evidenceNote || null, existing[0].id]
+    );
+  } else {
+    await pool.query(
+      `INSERT INTO skill_matrix (id, employee_id, skill_id, year, required_level, current_level, qualification_status, assessor, assessment_date, next_review_date, qual_remarks, evidence_note)
+       VALUES (?,?,?,?,3,0,?,?,?,?,?,?)`,
+      [uuidv4(), employeeId, skillId, year, qualificationStatus || "Not Started", assessor || null, assessmentDate || null, nextReviewDate || null, qualRemarks || null, evidenceNote || null]
     );
   }
   res.json({ ok: true });
