@@ -93,11 +93,29 @@ CREATE TABLE IF NOT EXISTS questions (
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaires(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS training_types (
+  id               VARCHAR(36) PRIMARY KEY,
+  name             VARCHAR(100) NOT NULL,
+  code             VARCHAR(20) NOT NULL UNIQUE,
+  attendance_method VARCHAR(255),
+  active           TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS sessions (
   id                            VARCHAR(36) PRIMARY KEY,
   title                         VARCHAR(255) NOT NULL,
   category                      ENUM('Technical','Behavioural','Mandatory') NOT NULL,
+  training_type_code            VARCHAR(20) NOT NULL DEFAULT 'CLASSROOM',
+  status                        ENUM('Draft','Scheduled','In Progress','Completed','Closed') NOT NULL DEFAULT 'Scheduled',
   trainer                       VARCHAR(255),
+  co_trainer                    VARCHAR(255),
+  coordinator                   VARCHAR(255),
+  target_audience               VARCHAR(255),
+  objective                     TEXT,
+  related_sop_id                VARCHAR(36) NULL,
+  sop_version                   VARCHAR(50),
+  certificate_required          TINYINT(1) NOT NULL DEFAULT 0,
+  delivery_type                 ENUM('Internal','External') NOT NULL DEFAULT 'Internal',
   session_date                  DATE NOT NULL,
   start_time                    TIME,
   end_time                      TIME,
@@ -110,14 +128,18 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL,
   FOREIGN KEY (evaluation_questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL,
-  FOREIGN KEY (effectiveness_questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL
+  FOREIGN KEY (effectiveness_questionnaire_id) REFERENCES questionnaires(id) ON DELETE SET NULL,
+  FOREIGN KEY (related_sop_id) REFERENCES sop_documents(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS attendance (
   id          VARCHAR(36) PRIMARY KEY,
   session_id  VARCHAR(36) NOT NULL,
   employee_id VARCHAR(36) NOT NULL,
-  status      ENUM('Nominated','Attended','Absent','Partial') DEFAULT 'Nominated',
+  status      ENUM('Nominated','Attended','Absent','Partial','Late','Excused') DEFAULT 'Nominated',
+  check_in    TIME NULL,
+  check_out   TIME NULL,
+  remarks     VARCHAR(500) NULL,
   UNIQUE KEY uniq_session_emp (session_id, employee_id),
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE

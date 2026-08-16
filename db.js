@@ -53,6 +53,31 @@ async function runStartupMigrations() {
     // also who maintains them — preserves today's Manager-edit behavior for skills that already
     // exist. New skills going forward get an explicit, independent owner (see routes/skills.js).
     `UPDATE skills SET owner_department = department WHERE owner_department IS NULL AND department IS NOT NULL`,
+    // Training Attendance module — Stage 1: Training Type master + extended Training Program fields
+    `CREATE TABLE IF NOT EXISTS training_types (
+       id VARCHAR(36) PRIMARY KEY, name VARCHAR(100) NOT NULL, code VARCHAR(20) NOT NULL UNIQUE,
+       attendance_method VARCHAR(255), active TINYINT(1) NOT NULL DEFAULT 1
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `ALTER TABLE sessions ADD COLUMN training_type_code VARCHAR(20) NOT NULL DEFAULT 'CLASSROOM'`,
+    `ALTER TABLE sessions ADD COLUMN status ENUM('Draft','Scheduled','In Progress','Completed','Closed') NOT NULL DEFAULT 'Scheduled'`,
+    `ALTER TABLE sessions ADD COLUMN co_trainer VARCHAR(255) NULL`,
+    `ALTER TABLE sessions ADD COLUMN coordinator VARCHAR(255) NULL`,
+    `ALTER TABLE sessions ADD COLUMN target_audience VARCHAR(255) NULL`,
+    `ALTER TABLE sessions ADD COLUMN objective TEXT NULL`,
+    `ALTER TABLE sessions ADD COLUMN related_sop_id VARCHAR(36) NULL`,
+    `ALTER TABLE sessions ADD COLUMN sop_version VARCHAR(50) NULL`,
+    `ALTER TABLE sessions ADD COLUMN certificate_required TINYINT(1) NOT NULL DEFAULT 0`,
+    `ALTER TABLE sessions ADD COLUMN delivery_type ENUM('Internal','External') NOT NULL DEFAULT 'Internal'`,
+    `ALTER TABLE attendance ADD COLUMN check_in TIME NULL`,
+    `ALTER TABLE attendance ADD COLUMN check_out TIME NULL`,
+    `ALTER TABLE attendance ADD COLUMN remarks VARCHAR(500) NULL`,
+    `ALTER TABLE attendance MODIFY COLUMN status ENUM('Nominated','Attended','Absent','Partial','Late','Excused') DEFAULT 'Nominated'`,
+    // Seed the 4 default training types from the user's spec — skipped automatically on rerun since code is UNIQUE.
+    `INSERT INTO training_types (id, name, code, attendance_method) VALUES
+       (UUID(), 'Classroom Training', 'CLASSROOM', 'Manual / QR / Employee selection'),
+       (UUID(), 'OJT', 'OJT', 'Trainer confirmation'),
+       (UUID(), 'Webinar', 'WEBINAR', 'Online attendance / manual'),
+       (UUID(), 'SOP Training', 'SOP', 'Employee acknowledgement + assessment')`,
   ];
   for (const sql of migrations) {
     try {
