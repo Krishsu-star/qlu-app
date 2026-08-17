@@ -412,6 +412,669 @@ async function runStartupMigrations() {
        UNIQUE KEY uniq_emp_resource (employee_id, resource_id),
        INDEX idx_elp_status (status)
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Cost-type taxonomy upgrade: the original 4-tier system is widened (not replaced) to include
+    // the more accurate 5-tier system, so existing rows never hit an invalid-enum error. Existing
+    // rows are then relabeled to their closest new equivalent right after.
+    `ALTER TABLE external_learning_resources MODIFY COLUMN cost_type ENUM('Free','Paid','Free to Learn / Certificate Paid','Subscription Required','Free Learning','Free Learning – Certificate May Be Paid','Enrollment Required','Paid Course','Free Preview / Introduction') DEFAULT 'Free Learning'`,
+    `UPDATE external_learning_resources SET cost_type = 'Free Learning' WHERE cost_type = 'Free'`,
+    `UPDATE external_learning_resources SET cost_type = 'Paid Course' WHERE cost_type = 'Paid'`,
+    `UPDATE external_learning_resources SET cost_type = 'Free Learning – Certificate May Be Paid' WHERE cost_type = 'Free to Learn / Certificate Paid'`,
+    `UPDATE external_learning_resources SET cost_type = 'Enrollment Required' WHERE cost_type = 'Subscription Required'`,
+    // Per user decision: the earlier no-login-only policy is relaxed — reactivating the 6
+    // Alison/Coursera/edX resources deactivated during Phase 1 for requiring a free account.
+    `UPDATE external_learning_resources SET active = 1, modified_by = 'System (reactivated — login requirement no longer a blocker per updated policy)', modified_at = NOW() WHERE active = 0`,
+    // 50-course QLU Learning Academy Library import (46 new — 3 of the original 50 were already
+    // seeded in Phase 1: OpenLearn "Effective Communication in the Workplace", OpenLearn "Leadership
+    // and Followership", and Coursera "Communication in Management & Leadership"; one further
+    // duplicate within the source doc itself, Great Learning's "Performance Management," is safely
+    // deduplicated below by the same URL-based NOT EXISTS guard used everywhere else in this file.
+    // Given the scale (46 courses), URL patterns per provider were confirmed live (OpenLearn,
+    // Alison, Coursera in Phase 1; Great Learning here), but not every individual course URL —
+    // flagged clearly to the user; Admin can fix any that don't resolve via Manage Resources.
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Introduction to Soft Skills Communication' AS title,
+       'Alison' AS provider,
+       'Soft Skills' AS academy_category,
+       'Communication Skills' AS sub_category,
+       'Covers the fundamentals of soft-skills-based workplace communication.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/introduction-to-soft-skills-communication' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 20 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/introduction-to-soft-skills-communication')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Introduction to Communication Skills' AS title,
+       'Alison' AS provider,
+       'Soft Skills' AS academy_category,
+       'Communication Skills' AS sub_category,
+       'A foundational course on core communication skills for the workplace.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/introduction-to-communication-skills' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 21 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/introduction-to-communication-skills')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Interpersonal Skills – Introduction to Soft Skills' AS title,
+       'Alison' AS provider,
+       'Soft Skills' AS academy_category,
+       'Interpersonal Skills' AS sub_category,
+       'Introduces interpersonal skills as a core soft-skills discipline.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/diploma-in-interpersonal-skills' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 22 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/diploma-in-interpersonal-skills')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Essential Soft Skills: Listening' AS title,
+       'Alison' AS provider,
+       'Soft Skills' AS academy_category,
+       'Active Listening' AS sub_category,
+       'Covers active listening as an essential workplace soft skill.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/essential-soft-skills-listening' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 23 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/essential-soft-skills-listening')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Introduction to Interpersonal Skills' AS title,
+       'Alison' AS provider,
+       'Soft Skills' AS academy_category,
+       'Interpersonal Skills' AS sub_category,
+       'A beginner-level introduction to interpersonal skills at work.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/introduction-to-interpersonal-skills' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 24 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/introduction-to-interpersonal-skills')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'The Importance of Interpersonal Skills' AS title,
+       'OpenLearn' AS provider,
+       'Soft Skills' AS academy_category,
+       'Interpersonal Skills' AS sub_category,
+       'Explores why interpersonal skills matter in professional and personal contexts.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/health-sports-psychology/the-importance-interpersonal-skills/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 25 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/health-sports-psychology/the-importance-interpersonal-skills/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Talk the Talk – Presentation Skills' AS title,
+       'OpenLearn' AS provider,
+       'Soft Skills' AS academy_category,
+       'Presentation Skills' AS sub_category,
+       'Covers the essentials of confident, effective presentation skills.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/education-development/talk-the-talk-presentation-skills/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 26 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/education-development/talk-the-talk-presentation-skills/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Emotional Intelligence in the Workplace' AS title,
+       'Coursera' AS provider,
+       'Soft Skills' AS academy_category,
+       'Emotional Intelligence' AS sub_category,
+       'Covers emotional intelligence fundamentals applied to workplace situations.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/emotional-intelligence-in-the-workplace' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 27 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/emotional-intelligence-in-the-workplace')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Emotional Intelligence for Business Professionals' AS title,
+       'Coursera' AS provider,
+       'Soft Skills' AS academy_category,
+       'Emotional Intelligence' AS sub_category,
+       'A more advanced look at applying emotional intelligence in business settings.' AS description,
+       'Intermediate' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/emotional-intelligence-for-business-professionals' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 28 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/emotional-intelligence-for-business-professionals')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Introduction to Management' AS title,
+       'Great Learning' AS provider,
+       'Management Skills' AS academy_category,
+       'People Management' AS sub_category,
+       'Overview of core management concepts: market analysis, leadership, and resource management.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/introduction-to-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 29 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/introduction-to-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Leadership and Management' AS title,
+       'Great Learning' AS provider,
+       'Management Skills' AS academy_category,
+       'People Management' AS sub_category,
+       'Covers the relationship and distinction between leadership and management.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/leadership-and-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 30 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/leadership-and-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Project Management' AS title,
+       'Great Learning' AS provider,
+       'Management Skills' AS academy_category,
+       'Planning' AS sub_category,
+       'Introduces core project management principles and practices.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/project-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 31 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/project-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Performance Management' AS title,
+       'Great Learning' AS provider,
+       'Management Skills' AS academy_category,
+       'Performance Management' AS sub_category,
+       'Covers planning, monitoring, reviewing, feedback, and performance appraisal concepts.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/performance-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 32 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/performance-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Conflict Management' AS title,
+       'Great Learning' AS provider,
+       'Management Skills' AS academy_category,
+       'Conflict Resolution' AS sub_category,
+       'Covers approaches to identifying and resolving workplace conflict.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/conflict-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 33 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/conflict-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Time Management' AS title,
+       'Great Learning' AS provider,
+       'Management Skills' AS academy_category,
+       'Time Management' AS sub_category,
+       'Covers prioritization, goal-setting, and productivity techniques for managers.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/time-management' AS external_url,
+       JSON_ARRAY('All Employees', 'Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 34 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/time-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Leadership & Management in Organizations' AS title,
+       'Alison' AS provider,
+       'Management Skills' AS academy_category,
+       'People Management' AS sub_category,
+       'A foundational course covering leadership and management principles within organizations.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/leadership-and-management-in-organizations' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers', 'Senior Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 35 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/leadership-and-management-in-organizations')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Leadership & Management Skills for Business' AS title,
+       'Alison' AS provider,
+       'Management Skills' AS academy_category,
+       'People Management' AS sub_category,
+       'Covers leadership and management skills for running and managing a team.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/leadership-and-management-skills-for-business-managing-employees' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 36 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/leadership-and-management-skills-for-business-managing-employees')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Conflict Management Strategies' AS title,
+       'Coursera' AS provider,
+       'Management Skills' AS academy_category,
+       'Conflict Resolution' AS sub_category,
+       'Covers strategies and frameworks for managing conflict in professional settings.' AS description,
+       'Intermediate' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/conflict-management-strategies' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 37 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/conflict-management-strategies')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Communication in Management & Leadership' AS title,
+       'Coursera' AS provider,
+       'Management Skills' AS academy_category,
+       'Communication' AS sub_category,
+       'Covers one-to-one communication, meetings, written communication, performance discussions, and influencing.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/communication-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers', 'Senior Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 38 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/communication-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'How to Develop Leadership Skills' AS title,
+       'Alison' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Leadership Fundamentals' AS sub_category,
+       'Covers foundational techniques for developing personal leadership skills.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/how-to-develop-leadership-skills' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 39 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/how-to-develop-leadership-skills')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Effective Leadership Skills and Strategies' AS title,
+       'Alison' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Leadership Fundamentals' AS sub_category,
+       'Covers strategies for effective leadership in the workplace.' AS description,
+       'Intermediate' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/effective-leadership-skills-and-strategies' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 40 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/effective-leadership-skills-and-strategies')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Leadership Skills for Beginners' AS title,
+       'Great Learning' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Leadership Fundamentals' AS sub_category,
+       'An introductory course covering the basics of leadership.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/leadership-skills-for-beginners' AS external_url,
+       JSON_ARRAY('All Employees', 'Supervisors') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 41 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/leadership-skills-for-beginners')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Strategic Thinking for Aspiring Leaders' AS title,
+       'Great Learning' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Strategic Thinking' AS sub_category,
+       'Covers strategic-thinking fundamentals for employees moving into leadership roles.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/strategic-thinking-for-aspiring-leaders' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 42 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/strategic-thinking-for-aspiring-leaders')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Strategic Management' AS title,
+       'Great Learning' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Strategic Thinking' AS sub_category,
+       'Covers strategic management concepts and frameworks.' AS description,
+       'Intermediate' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/strategic-management' AS external_url,
+       JSON_ARRAY('Managers', 'Senior Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 43 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/strategic-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Strategic Management' AS title,
+       'Coursera / Copenhagen Business School' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Strategic Thinking' AS sub_category,
+       'A university-backed course on strategic management fundamentals.' AS description,
+       'Intermediate' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/strategic-management' AS external_url,
+       JSON_ARRAY('Managers', 'Senior Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 44 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/strategic-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Strategic Management Foundations & Capabilities' AS title,
+       'Coursera' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Strategic Thinking' AS sub_category,
+       'Covers the foundations and organizational capabilities behind strategic management.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/strategic-management-foundations-capabilities' AS external_url,
+       JSON_ARRAY('Managers', 'Senior Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 45 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/strategic-management-foundations-capabilities')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Diploma in Human Resources' AS title,
+       'Alison' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'A broad diploma-level introduction to human resources concepts.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/diploma-in-human-resources' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 46 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/diploma-in-human-resources')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Recruitment Consultant' AS title,
+       'Alison' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers recruitment practices, sourcing methods, and finding suitable candidates.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/recruitment-consultant' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 47 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/recruitment-consultant')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'The Recruitment and Onboarding Process' AS title,
+       'Alison' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers attraction, selection, job descriptions, selection tools, and onboarding.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/the-recruitment-and-onboarding-process' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 48 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/the-recruitment-and-onboarding-process')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'HR Employee Management and Training' AS title,
+       'Alison' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers employee management and training practices from an HR perspective.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/hr-employee-management-and-training' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 49 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/hr-employee-management-and-training')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Introduction to Human Resource Concepts' AS title,
+       'Alison' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'A foundational overview of core human resource management concepts.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/introduction-to-human-resource-concepts' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 50 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/introduction-to-human-resource-concepts')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Human Resource Management' AS title,
+       'Great Learning' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers core human resource management practices.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/human-resource-management' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 51 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/human-resource-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'AI for Human Resources Professionals' AS title,
+       'Alison' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers how AI tools are being applied within HR functions.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://alison.com/course/ai-for-human-resources-professionals' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 52 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/ai-for-human-resources-professionals')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'AI in Human Resource Management' AS title,
+       'Great Learning' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers AI-supported recruitment, resume screening, candidate engagement, onboarding and L&D.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/ai-in-human-resource-management' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 53 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/ai-in-human-resource-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Talent Acquisition' AS title,
+       'Coursera / HRCI' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers talent acquisition principles and practices.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/talent-acquisition' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 54 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/talent-acquisition')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Succeed in the Workplace – CV & Interview Skills' AS title,
+       'OpenLearn' AS provider,
+       'Professional Skills' AS academy_category,
+       'HR & Recruitment' AS sub_category,
+       'Covers CVs, applications, and interview situations — useful for HR/recruiters as well as job seekers.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/education-development/employability-hub/succeed-the-workplace-cvs-applications-and-interviews/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 55 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/education-development/employability-hub/succeed-the-workplace-cvs-applications-and-interviews/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Digital Skills: Succeeding in a Digital World' AS title,
+       'OpenLearn' AS provider,
+       'Professional Skills' AS academy_category,
+       'Digital Skills' AS sub_category,
+       'Covers core digital skills needed to succeed in a modern workplace.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/digital-computing/digital-skills-succeeding-digital-world/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 56 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/digital-computing/digital-skills-succeeding-digital-world/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'AI Fluency' AS title,
+       'OpenLearn' AS provider,
+       'Professional Skills' AS academy_category,
+       'Digital Skills' AS sub_category,
+       'Covers AI fundamentals, generative AI, responsible AI, Microsoft Copilot, privacy, and AI-related workplace issues.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/digital-computing/ai-fluency/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 57 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/digital-computing/ai-fluency/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Customer Service Essentials' AS title,
+       'Great Learning' AS provider,
+       'Professional Skills' AS academy_category,
+       'Collaboration' AS sub_category,
+       'Covers core customer-service skills and best practices.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/customer-service-essentials' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 58 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/customer-service-essentials')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Personal Branding for Career Success' AS title,
+       'OpenLearn' AS provider,
+       'Professional Skills' AS academy_category,
+       'Career Development' AS sub_category,
+       'Covers building a personal brand to support career growth.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/education-development/employability-hub/personal-branding-career-success/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 59 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/education-development/employability-hub/personal-branding-career-success/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Internships and Other Work Experiences' AS title,
+       'OpenLearn' AS provider,
+       'Professional Skills' AS academy_category,
+       'Career Development' AS sub_category,
+       'Covers how to make the most of internships and early work experience.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/education-development/employability-hub/internships-and-other-work-experiences/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 59 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/education-development/employability-hub/internships-and-other-work-experiences/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Exploring Career Mentoring and Coaching' AS title,
+       'OpenLearn' AS provider,
+       'Professional Skills' AS academy_category,
+       'Learning & Development' AS sub_category,
+       'Covers the fundamentals of mentoring and coaching for career development.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning' AS cost_type,
+       'https://www.open.edu/openlearn/education-development/exploring-career-mentoring-and-coaching/content-section-overview' AS external_url,
+       JSON_ARRAY('All Employees', 'Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 62 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/education-development/exploring-career-mentoring-and-coaching/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Employee Development & Well-Being' AS title,
+       'Coursera' AS provider,
+       'Professional Skills' AS academy_category,
+       'Learning & Development' AS sub_category,
+       'Covers employee development practices and workplace well-being.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/employee-development-and-well-being' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 63 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/employee-development-and-well-being')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Leading with Power Skills: Emotions & Emotional Intelligence' AS title,
+       'Coursera' AS provider,
+       'Professional Skills' AS academy_category,
+       'Learning & Development' AS sub_category,
+       'Covers leading through power skills, emotions, and emotional intelligence.' AS description,
+       'Intermediate' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.coursera.org/learn/leading-with-power-skills-emotions-and-emotional-intelligence' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 64 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/leading-with-power-skills-emotions-and-emotional-intelligence')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'The Six Disciplines of Breakthrough Learning – Free Introduction' AS title,
+       'The 6Ds Company' AS provider,
+       'Professional Skills' AS academy_category,
+       'Learning & Development' AS sub_category,
+       'A free introduction to the 6Ds framework: Define, Design, Deliver, Drive, Deploy, Document.' AS description,
+       'All Levels' AS learning_level,
+       'Free Preview / Introduction' AS cost_type,
+       'https://www.the6ds.com/' AS external_url,
+       JSON_ARRAY('Department Heads', 'Leadership Team') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 65 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.the6ds.com/')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Performance Management' AS title,
+       'Great Learning' AS provider,
+       'Professional Skills' AS academy_category,
+       'Learning & Development' AS sub_category,
+       'Covers performance-management concepts from an L&D perspective.' AS description,
+       'Beginner' AS learning_level,
+       'Free Learning – Certificate May Be Paid' AS cost_type,
+       'https://www.mygreatlearning.com/academy/learn-for-free/courses/performance-management' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 66 AS display_order, 'System (50-course QLU library import)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/performance-management')`,
   ];
   for (const sql of migrations) {
     try {
