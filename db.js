@@ -111,6 +111,93 @@ async function runStartupMigrations() {
        INDEX idx_audit_entity (entity_type, entity_id),
        INDEX idx_audit_session (session_id)
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Learning Academy — External Virtual Learning Resources (Phase 1). A dedicated master table
+    // per the spec, deliberately separate from the existing content_bank table so this rollout
+    // can't touch or break anything already working in Learning Academy. Genuinely external,
+    // curated third-party courses — never hard-coded into the frontend, always admin-maintained.
+    `CREATE TABLE IF NOT EXISTS external_learning_resources (
+       id VARCHAR(36) PRIMARY KEY,
+       title VARCHAR(255) NOT NULL,
+       provider VARCHAR(128) NOT NULL,
+       academy_category ENUM('Soft Skills','Management Skills','Leadership Skills','Professional Skills') NOT NULL,
+       sub_category VARCHAR(128),
+       description TEXT,
+       learning_level ENUM('Beginner','Intermediate','Advanced','All Levels') DEFAULT 'All Levels',
+       estimated_duration VARCHAR(64),
+       language VARCHAR(64) DEFAULT 'English',
+       cost_type ENUM('Free','Paid','Free to Learn / Certificate Paid','Subscription Required') DEFAULT 'Free',
+       external_url VARCHAR(1024) NOT NULL,
+       recommended_audience JSON,
+       gmp_related TINYINT(1) DEFAULT 0,
+       certificate_available TINYINT(1) DEFAULT 0,
+       active TINYINT(1) DEFAULT 1,
+       display_order INT DEFAULT 0,
+       created_by VARCHAR(255),
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       modified_by VARCHAR(255),
+       modified_at TIMESTAMP NULL,
+       INDEX idx_elr_category (academy_category),
+       INDEX idx_elr_active (active)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Seed data from the initial 4-provider list — INSERT IGNORE-style guard via a NOT EXISTS
+    // check so this never re-runs or duplicates on subsequent deploys. All URLs spot-verified
+    // live before seeding; Admin can edit/deactivate/replace any of these at any time.
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Effective Communication in the Workplace', 'OpenLearn', 'Soft Skills', 'Communication Skills',
+       'Develop effective workplace communication skills, including expressing ideas clearly, understanding others, and adapting communication styles.',
+       'Beginner', 'Approx. 24 hours', 'Free', 'https://www.open.edu/openlearn/mod/oucontent/view.php?id=97118',
+       JSON_ARRAY('All Employees'), 0, 1, 1, 1, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/mod/oucontent/view.php?id=97118')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Leadership and Followership', 'OpenLearn', 'Leadership Skills', 'Leadership Fundamentals',
+       'Explore what makes a good leader, recognise common leadership challenges, and identify the skills you need to develop to enhance your leadership experience.',
+       'Beginner', 'Approx. 24 hours', 'Free', 'https://www.open.edu/openlearn/education-development/learning/leadership-and-followership/content-section-overview',
+       JSON_ARRAY('All Employees', 'Supervisors', 'Managers'), 0, 1, 1, 2, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.open.edu/openlearn/education-development/learning/leadership-and-followership/content-section-overview')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Leadership and Management in Organizations', 'Alison', 'Leadership Skills', 'Leadership Fundamentals',
+       'A foundational course covering leadership and management principles as applied within organizations.',
+       'All Levels', 'Varies', 'Free to Learn / Certificate Paid', 'https://alison.com/course/leadership-and-management-in-organizations',
+       JSON_ARRAY('Supervisors', 'Managers', 'Senior Managers'), 0, 1, 1, 3, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/leadership-and-management-in-organizations')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Leadership Skills and Team Management', 'Alison', 'Leadership Skills', 'Building High-Performance Teams',
+       'Covers core leadership and team management skills for building and running effective teams.',
+       'All Levels', 'Varies', 'Free to Learn / Certificate Paid', 'https://alison.com/course/leadership-skills-and-team-management',
+       JSON_ARRAY('Supervisors', 'Managers'), 0, 1, 1, 4, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/leadership-skills-and-team-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Workplace Leadership and Management Skills', 'Alison', 'Management Skills', 'People Management',
+       'Practical workplace-focused leadership and management skills course.',
+       'All Levels', 'Varies', 'Free to Learn / Certificate Paid', 'https://alison.com/course/workplace-leadership-and-management-skills',
+       JSON_ARRAY('Supervisors', 'Managers'), 0, 1, 1, 5, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://alison.com/course/workplace-leadership-and-management-skills')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Communication in Management & Leadership', 'Coursera', 'Management Skills', 'Communication',
+       'A practical toolkit for communicating with clarity, confidence, and impact in management and leadership situations — one-to-one conversations, meetings, written communication, and difficult conversations.',
+       'All Levels', 'Approx. 9 hours', 'Free to Learn / Certificate Paid', 'https://www.coursera.org/learn/communication-management',
+       JSON_ARRAY('Supervisors', 'Managers', 'Senior Managers'), 0, 1, 1, 6, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.coursera.org/learn/communication-management')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Business Communications', 'edX', 'Professional Skills', 'Business Communication',
+       'Covers core business communication skills for the professional workplace.',
+       'All Levels', 'Varies', 'Free to Learn / Certificate Paid', 'https://www.edx.org/learn/business-communications',
+       JSON_ARRAY('All Employees', 'Executives'), 0, 1, 1, 7, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.edx.org/learn/business-communications')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID(), 'Management', 'edX', 'Management Skills', 'People Management',
+       'Covers core management principles and practices for the workplace.',
+       'All Levels', 'Varies', 'Free to Learn / Certificate Paid', 'https://www.edx.org/learn/management',
+       JSON_ARRAY('Supervisors', 'Managers'), 0, 1, 1, 8, 'System (initial seed)'
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.edx.org/learn/management')`,
   ];
   for (const sql of migrations) {
     try {
