@@ -385,6 +385,33 @@ async function runStartupMigrations() {
        JSON_ARRAY('All Employees') AS recommended_audience,
        0 AS gmp_related, 0 AS certificate_available, 1 AS active, 13 AS display_order, 'System (initial seed)' AS created_by
      ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.ted.com/talks/amy_cuddy_your_body_language_may_shape_who_you_are')`,
+    // Learning Academy Phase 2a — employee tracking workflow (Not Started/In Progress/Completed/
+    // Certificate Submitted/Verified/Rejected). Certificate fields are text-based for now (number,
+    // dates, remarks) — actual FILE attachment comes in Phase 2b once the existing upload pattern
+    // (e.g. photos/SOP documents) has been reviewed, so this doesn't guess at a convention blind.
+    // No cascade FK to external_learning_resources — a progress record (and its audit history)
+    // should survive even if the resource it refers to is later deleted or deactivated.
+    `CREATE TABLE IF NOT EXISTS external_learning_progress (
+       id VARCHAR(36) PRIMARY KEY,
+       employee_id VARCHAR(36) NOT NULL,
+       resource_id VARCHAR(36) NOT NULL,
+       status ENUM('Not Started','In Progress','Completed','Certificate Submitted','Verified','Rejected') NOT NULL DEFAULT 'Not Started',
+       started_date DATE NULL,
+       completed_date DATE NULL,
+       certificate_number VARCHAR(255) NULL,
+       certificate_completion_date DATE NULL,
+       certificate_expiry_date DATE NULL,
+       certificate_file_path VARCHAR(1024) NULL,
+       certificate_remarks TEXT NULL,
+       verified_by VARCHAR(255) NULL,
+       verified_date DATE NULL,
+       verification_remarks TEXT NULL,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+       UNIQUE KEY uniq_emp_resource (employee_id, resource_id),
+       INDEX idx_elp_status (status)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ];
   for (const sql of migrations) {
     try {
