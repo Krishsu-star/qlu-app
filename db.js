@@ -78,6 +78,19 @@ async function runStartupMigrations() {
        (UUID(), 'OJT', 'OJT', 'Trainer confirmation'),
        (UUID(), 'Webinar', 'WEBINAR', 'Online attendance / manual'),
        (UUID(), 'SOP Training', 'SOP', 'Employee acknowledgement + assessment')`,
+    // Training Attendance module — Stage 3: approval & lock workflow. A session can only reach
+    // Closed by passing through Trainer Confirmed first (never set directly), and once Closed,
+    // only Admin may still touch it — and must leave a reason, logged in session_corrections.
+    `ALTER TABLE sessions MODIFY COLUMN status ENUM('Draft','Scheduled','In Progress','Completed','Trainer Confirmed','Closed') NOT NULL DEFAULT 'Scheduled'`,
+    `ALTER TABLE sessions ADD COLUMN trainer_confirmed_by VARCHAR(255) NULL`,
+    `ALTER TABLE sessions ADD COLUMN trainer_confirmed_at TIMESTAMP NULL`,
+    `ALTER TABLE sessions ADD COLUMN closed_by VARCHAR(255) NULL`,
+    `ALTER TABLE sessions ADD COLUMN closed_at TIMESTAMP NULL`,
+    `CREATE TABLE IF NOT EXISTS session_corrections (
+       id VARCHAR(36) PRIMARY KEY, session_id VARCHAR(36) NOT NULL, edited_by VARCHAR(255),
+       reason TEXT NOT NULL, edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ];
   for (const sql of migrations) {
     try {
