@@ -294,6 +294,97 @@ async function runStartupMigrations() {
        8 AS display_order,
        'System (initial seed)' AS created_by
      ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.edx.org/learn/management')`,
+    // Per user feedback: employees must be able to open a course directly with NO login/signup
+    // wall. Alison, Coursera, and edX all gate actual lesson content behind a free account even
+    // though their landing pages are public — deactivating those 6 rather than deleting them, so
+    // the history/URLs aren't lost if this policy ever changes.
+    `UPDATE external_learning_resources SET active = 0, modified_by = 'System (deactivated — requires signup to open lessons)', modified_at = NOW()
+     WHERE external_url IN (
+       'https://alison.com/course/leadership-and-management-in-organizations',
+       'https://alison.com/course/leadership-skills-and-team-management',
+       'https://alison.com/course/workplace-leadership-and-management-skills',
+       'https://www.coursera.org/learn/communication-management',
+       'https://www.edx.org/learn/business-communications',
+       'https://www.edx.org/learn/management'
+     ) AND active = 1`,
+    // Replacement resources — genuinely no-signup, spot-verified live: MIT OpenCourseWare states
+    // explicitly "no sign-up, no enrollment" for all content; TED Talks have never required an
+    // account to watch.
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Advanced Communication for Leaders' AS title,
+       'MIT OpenCourseWare' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Leadership Communication' AS sub_category,
+       'Interactive oral and interpersonal communication skills critical to leaders: presenting to a hostile audience, running effective meetings, active listening, and group decision-making.' AS description,
+       'Advanced' AS learning_level,
+       'Self-paced' AS estimated_duration,
+       'Free' AS cost_type,
+       'https://ocw.mit.edu/courses/15-281-advanced-communication-for-leaders-spring-2016/' AS external_url,
+       JSON_ARRAY('Supervisors', 'Managers', 'Senior Managers', 'Leadership Team') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 9 AS display_order, 'System (initial seed)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://ocw.mit.edu/courses/15-281-advanced-communication-for-leaders-spring-2016/')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Organizational Leadership and Change' AS title,
+       'MIT OpenCourseWare' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Change Leadership' AS sub_category,
+       'Practical experience blending leadership theory and practice — reflecting on prior leadership experience and applying lessons learned to further develop leadership capabilities.' AS description,
+       'Advanced' AS learning_level,
+       'Self-paced' AS estimated_duration,
+       'Free' AS cost_type,
+       'https://ocw.mit.edu/courses/15-317-organizational-leadership-and-change-summer-2009/' AS external_url,
+       JSON_ARRAY('Managers', 'Senior Managers', 'Department Heads', 'Leadership Team') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 10 AS display_order, 'System (initial seed)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://ocw.mit.edu/courses/15-317-organizational-leadership-and-change-summer-2009/')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'How Great Leaders Inspire Action' AS title,
+       'TED' AS provider,
+       'Leadership Skills' AS academy_category,
+       'Leadership Fundamentals' AS sub_category,
+       'Simon Sinek''s widely-watched talk on the "Golden Circle" model for inspirational leadership — why some leaders and organizations inspire when others, with the same resources, do not.' AS description,
+       'All Levels' AS learning_level,
+       '18 minutes' AS estimated_duration,
+       'Free' AS cost_type,
+       'https://www.ted.com/talks/simon_sinek_how_great_leaders_inspire_action' AS external_url,
+       JSON_ARRAY('All Employees', 'Supervisors', 'Managers', 'Senior Managers', 'Leadership Team') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 11 AS display_order, 'System (initial seed)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.ted.com/talks/simon_sinek_how_great_leaders_inspire_action')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       '10 Ways to Have a Better Conversation' AS title,
+       'TED' AS provider,
+       'Soft Skills' AS academy_category,
+       'Active Listening' AS sub_category,
+       'Longtime radio host Celeste Headlee shares 10 practical rules for better conversations — honesty, brevity, clarity, and genuine listening.' AS description,
+       'Beginner' AS learning_level,
+       '11 minutes' AS estimated_duration,
+       'Free' AS cost_type,
+       'https://www.ted.com/talks/celeste_headlee_10_ways_to_have_a_better_conversation' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 12 AS display_order, 'System (initial seed)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.ted.com/talks/celeste_headlee_10_ways_to_have_a_better_conversation')`,
+    `INSERT INTO external_learning_resources (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
+     SELECT * FROM (SELECT
+       UUID() AS id,
+       'Your Body Language May Shape Who You Are' AS title,
+       'TED' AS provider,
+       'Soft Skills' AS academy_category,
+       'Presentation Skills' AS sub_category,
+       'Social psychologist Amy Cuddy on how body language and "power posing" affect confidence, presence, and how others perceive you.' AS description,
+       'Beginner' AS learning_level,
+       '21 minutes' AS estimated_duration,
+       'Free' AS cost_type,
+       'https://www.ted.com/talks/amy_cuddy_your_body_language_may_shape_who_you_are' AS external_url,
+       JSON_ARRAY('All Employees') AS recommended_audience,
+       0 AS gmp_related, 0 AS certificate_available, 1 AS active, 13 AS display_order, 'System (initial seed)' AS created_by
+     ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.ted.com/talks/amy_cuddy_your_body_language_may_shape_who_you_are')`,
   ];
   for (const sql of migrations) {
     try {
