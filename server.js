@@ -33,6 +33,7 @@ const trainerQualRoutes = require("./routes/trainerQual");
 const surveyRoutes = require("./routes/survey");
 const reportsRoutes = require("./routes/reports");
 const auditLogRoutes = require("./routes/auditLog");
+const externalLearningRoutes = require("./routes/externalLearning");
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use("/api/trainer-qual", trainerQualRoutes);
 app.use("/api/survey", surveyRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/audit-log", auditLogRoutes);
+app.use("/api/external-learning", externalLearningRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "QLC server" }));
 
