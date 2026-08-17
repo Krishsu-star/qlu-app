@@ -60,7 +60,7 @@ router.post("/", requireAuth, requireRole("Admin", "HR"), async (req, res) => {
       (id, title, provider, academy_category, sub_category, description, learning_level, estimated_duration, language, cost_type, external_url, recommended_audience, gmp_related, certificate_available, active, display_order, created_by)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, b.title, b.provider, b.academyCategory, b.subCategory || null, b.description || null, b.learningLevel || "All Levels",
-     b.estimatedDuration || null, b.language || "English", b.costType || "Free", b.externalUrl,
+     b.estimatedDuration || null, b.language || "English", b.costType || "Free Learning", b.externalUrl,
      JSON.stringify(b.recommendedAudience || []), b.gmpRelated ? 1 : 0, b.certificateAvailable ? 1 : 0,
      b.active === false ? 0 : 1, b.displayOrder || 0, createdBy]
   );
@@ -90,7 +90,7 @@ router.put("/:id", requireAuth, requireRole("Admin", "HR"), async (req, res) => 
       active=?, display_order=?, modified_by=?, modified_at=NOW()
      WHERE id=?`,
     [b.title, b.provider, b.academyCategory, b.subCategory || null, b.description || null, b.learningLevel || "All Levels",
-     b.estimatedDuration || null, b.language || "English", b.costType || "Free", b.externalUrl,
+     b.estimatedDuration || null, b.language || "English", b.costType || "Free Learning", b.externalUrl,
      JSON.stringify(b.recommendedAudience || []), b.gmpRelated ? 1 : 0, b.certificateAvailable ? 1 : 0,
      b.active === false ? 0 : 1, b.displayOrder || 0, modifiedBy, req.params.id]
   );
