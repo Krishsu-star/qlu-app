@@ -91,6 +91,26 @@ async function runStartupMigrations() {
        reason TEXT NOT NULL, edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Stage 5: company-wide audit trail. Deliberately NOT foreign-keyed to sessions (or anything
+    // else) with ON DELETE CASCADE — an audit trail that disappears when the record it describes
+    // is deleted defeats its own purpose. entity_type lets this same table serve every module as
+    // each one is wired up (sessions/attendance today; employees/skill-matrix to follow).
+    `CREATE TABLE IF NOT EXISTS audit_log (
+       id VARCHAR(36) PRIMARY KEY,
+       entity_type VARCHAR(50) NOT NULL,
+       entity_id VARCHAR(36) NOT NULL,
+       session_id VARCHAR(36) NULL,
+       action VARCHAR(50) NOT NULL,
+       summary VARCHAR(500),
+       changes JSON NULL,
+       performed_by VARCHAR(255),
+       performed_role VARCHAR(50),
+       reason VARCHAR(1000) NULL,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       INDEX idx_audit_created (created_at),
+       INDEX idx_audit_entity (entity_type, entity_id),
+       INDEX idx_audit_session (session_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ];
   for (const sql of migrations) {
     try {
