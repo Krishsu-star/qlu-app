@@ -118,4 +118,98 @@ router.delete("/:id", requireAuth, requireRole("Admin", "HR"), async (req, res) 
   res.json({ ok: true });
 });
 
+function rowToProgress(r) {
+  return {
+    id: r.id, employeeId: r.employee_id, resourceId: r.resource_id, status: r.status,
+    startedDate: r.started_date, completedDate: r.completed_date,
+    certificateNumber: r.certificate_number, certificateCompletionDate: r.certificate_completion_date,
+    certificateExpiryDate: r.certificate_expiry_date, certificateFilePath: r.certificate_file_path,
+    certificateRemarks: r.certificate_remarks,
+    verifiedBy: r.verified_by, verifiedDate: r.verified_date, verificationRemarks: r.verification_remarks,
+    createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+
+// GET /api/external-learning/progress/mine — the signed-in employee's own progress records,
+// across every resource they've started. Used to show status/actions on each resource card and
+// to build their personal "My External Learning" history.
+router.get("/progress/mine", requireAuth, async (req, res) => {
+  if (!req.user.employeeId) return res.json([]);
+  const [rows] = await pool.query(`SELECT * FROM external_learning_progress WHERE employee_id = ?`, [req.user.employeeId]);
+  res.json(rows.map(rowToProgress));
+});
+
+// GET /api/external-learning/progress/all — Admin/HR/QA: everyone's progress, for oversight and
+// to build the certificate verification queue.
+router.get("/progress/all", requireAuth, requireRole("Admin", "HR", "QA"), async (req, res) => {
+  const [rows] = await pool.query(`SELECT * FROM external_learning_progress ORDER BY updated_at DESC`);
+  res.json(rows.map(rowToProgress));
+});
+
+// POST /api/external-learning/:resourceId/progress — the employee updates their OWN status for a
+// resource: Not Started -> In Progress -> Completed -> Certificate Submitted (text-based
+// certificate details for now; file attachment is Phase 2b). Upserts one row per employee+resource.
+// Deliberately self-service and un-gated by role — this is the employee's own learning record,
+// not an admin action; Verified/Rejected are excluded here and can only be set via /verify below.
+router.post("/:resourceId/progress", requireAuth, async (req, res) => {
+  if (!req.user.employeeId) return res.status(400).json({ error: "This account isn't linked to an employee record, so progress can't be tracked." });
+  const { status, certificateNumber, certificateCompletionDate, certificateExpiryDate, certificateRemarks } = req.body;
+  const selfServiceStatuses = ["Not Started", "In Progress", "Completed", "Certificate Submitted"];
+  if (!selfServiceStatuses.includes(status)) return res.status(400).json({ error: "Invalid status." });
+
+  const [existingRows] = await pool.query(`SELECT * FROM external_learning_progress WHERE employee_id = ? AND resource_id = ?`, [req.user.employeeId, req.params.resourceId]);
+  const existing = existingRows[0];
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (existing) {
+    const sets = ["status = ?"];
+    const params = [status];
+    if (status === "In Progress" && !existing.started_date) { sets.push("started_date = ?"); params.push(today); }
+    if (status === "Completed" && !existing.completed_date) { sets.push("completed_date = ?"); params.push(today); }
+    if (status === "Certificate Submitted") {
+      sets.push("certificate_number = ?", "certificate_completion_date = ?", "certificate_expiry_date = ?", "certificate_remarks = ?");
+      params.push(certificateNumber || null, certificateCompletionDate || null, certificateExpiryDate || null, certificateRemarks || null);
+    }
+    params.push(existing.id);
+    await pool.query(`UPDATE external_learning_progress SET ${sets.join(", ")} WHERE id = ?`, params);
+    if (existing.status !== status) {
+      await logAudit(req, {
+        entityType: "externalLearningProgress", entityId: existing.id, action: "updated",
+        summary: `Progress status: ${existing.status} → ${status}`, changes: { status: { from: existing.status, to: status } },
+      });
+    }
+  } else {
+    const id = uuidv4();
+    await pool.query(
+      `INSERT INTO external_learning_progress (id, employee_id, resource_id, status, started_date) VALUES (?,?,?,?,?)`,
+      [id, req.user.employeeId, req.params.resourceId, status, status !== "Not Started" ? today : null]
+    );
+    await logAudit(req, { entityType: "externalLearningProgress", entityId: id, action: "created", summary: `Progress started: ${status}` });
+  }
+  res.json({ ok: true });
+});
+
+// PUT /api/external-learning/progress/:id/verify — Admin/HR/QA only. Moves a "Certificate
+// Submitted" record to Verified or Rejected — this is the T&D/QA gate the spec requires before a
+// submitted certificate counts as confirmed, and it's the only way to reach either status.
+router.put("/progress/:id/verify", requireAuth, requireRole("Admin", "HR", "QA"), async (req, res) => {
+  const { decision, remarks } = req.body;
+  if (!["Verified", "Rejected"].includes(decision)) return res.status(400).json({ error: "Decision must be Verified or Rejected." });
+  const [existingRows] = await pool.query(`SELECT * FROM external_learning_progress WHERE id = ?`, [req.params.id]);
+  const existing = existingRows[0];
+  if (!existing) return res.status(404).json({ error: "Progress record not found." });
+  const verifiedBy = req.body.actorName || req.user.role;
+  const today = new Date().toISOString().slice(0, 10);
+  await pool.query(
+    `UPDATE external_learning_progress SET status = ?, verified_by = ?, verified_date = ?, verification_remarks = ? WHERE id = ?`,
+    [decision, verifiedBy, today, remarks || null, req.params.id]
+  );
+  await logAudit(req, {
+    entityType: "externalLearningProgress", entityId: req.params.id, action: decision === "Verified" ? "verified" : "rejected",
+    summary: `Certificate ${decision.toLowerCase()} by ${verifiedBy}${remarks ? `: ${remarks}` : ""}`,
+    changes: { status: { from: existing.status, to: decision } }, reason: remarks || null,
+  });
+  res.json({ ok: true });
+});
+
 module.exports = router;
