@@ -3,6 +3,7 @@ const { randomUUID: uuidv4 } = require("crypto");
 const pool = require("../db");
 const { requireAuth } = require("../authMiddleware");
 const { scopeForUser } = require("../utils/scope");
+const { logAudit } = require("../auditLogger");
 
 const router = express.Router();
 
@@ -46,7 +47,9 @@ router.get("/gap-analysis", requireAuth, async (req, res) => {
 });
 
 // PUT /api/skill-matrix  body: { employeeId, skillId, field: "required"|"current", value }
-// Managers can only update "current" and only for their own team (enforced here, mirroring the local app's rule)
+// Managers can only update "current" and only for their own team (enforced here, mirroring the
+// local app's rule) — that permission logic is unchanged; every successful change is now also
+// logged to the shared audit trail with the before/after proficiency level.
 router.put("/", requireAuth, async (req, res) => {
   const { employeeId, skillId, field, value } = req.body;
   if (!["required", "current"].includes(field)) return res.status(400).json({ error: "Invalid field." });
@@ -59,18 +62,40 @@ router.put("/", requireAuth, async (req, res) => {
   }
 
   const column = field === "required" ? "required_level" : "current_level";
-  const [existing] = await pool.query(`SELECT id FROM skill_matrix WHERE employee_id = ? AND skill_id = ?`, [employeeId, skillId]);
+  const [existing] = await pool.query(`SELECT * FROM skill_matrix WHERE employee_id = ? AND skill_id = ?`, [employeeId, skillId]);
+
+  const [nameRows] = await pool.query(
+    `SELECT e.name AS employee_name, s.name AS skill_name FROM employees e, skills s WHERE e.id = ? AND s.id = ?`,
+    [employeeId, skillId]
+  );
+  const names = nameRows[0] || { employee_name: employeeId, skill_name: skillId };
+  const label = (v) => PROFICIENCY_LABELS[v] ?? v;
+
+  let matrixId;
   if (existing[0]) {
+    matrixId = existing[0].id;
+    const oldValue = existing[0][column];
     const extra = field === "current" ? ", last_assessed = CURDATE()" : "";
-    await pool.query(`UPDATE skill_matrix SET ${column} = ? ${extra} WHERE id = ?`, [value, existing[0].id]);
+    await pool.query(`UPDATE skill_matrix SET ${column} = ? ${extra} WHERE id = ?`, [value, matrixId]);
+    if (oldValue !== value) {
+      await logAudit(req, {
+        entityType: "skillMatrix", entityId: matrixId, action: "updated",
+        summary: `${names.employee_name} — ${names.skill_name}: ${field === "required" ? "Required" : "Current"} level ${label(oldValue)} → ${label(value)}`,
+        changes: { [column]: { from: oldValue, to: value } },
+      });
+    }
   } else {
-    const id = uuidv4();
+    matrixId = uuidv4();
     const requiredVal = field === "required" ? value : 3;
     const currentVal = field === "current" ? value : 0;
     await pool.query(
       `INSERT INTO skill_matrix (id, employee_id, skill_id, required_level, current_level, last_assessed) VALUES (?,?,?,?,?,CURDATE())`,
-      [id, employeeId, skillId, requiredVal, currentVal]
+      [matrixId, employeeId, skillId, requiredVal, currentVal]
     );
+    await logAudit(req, {
+      entityType: "skillMatrix", entityId: matrixId, action: "created",
+      summary: `${names.employee_name} — ${names.skill_name}: added to matrix (Required: ${label(requiredVal)}, Current: ${label(currentVal)})`,
+    });
   }
   res.json({ ok: true });
 });
