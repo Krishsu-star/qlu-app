@@ -9,31 +9,39 @@ const router = express.Router();
 
 const PROFICIENCY_LABELS = ["None", "Basic", "Working", "Proficient", "Expert"];
 
-// GET /api/skill-matrix — full matrix rows, scoped by role
+// GET /api/skill-matrix — full matrix rows, scoped by role. Optional ?year=2026 filters to
+// one assessment cycle; without it, every year on file is returned (the frontend groups by year).
 router.get("/", requireAuth, async (req, res) => {
   const scope = await scopeForUser(req.user);
   let sql = `SELECT sm.*, e.name AS employee_name, e.department, s.name AS skill_name, s.category
              FROM skill_matrix sm
              JOIN employees e ON e.id = sm.employee_id
              JOIN skills s ON s.id = sm.skill_id`;
-  const [rows] = await pool.query(sql);
+  const params = [];
+  if (req.query.year) { sql += ` WHERE sm.year = ?`; params.push(Number(req.query.year)); }
+  const [rows] = await pool.query(sql, params);
   const filtered = scope ? rows.filter((r) => scope.has(r.employee_id)) : rows;
   res.json(filtered.map((r) => ({
-    id: r.id, employeeId: r.employee_id, skillId: r.skill_id,
+    id: r.id, employeeId: r.employee_id, skillId: r.skill_id, year: r.year,
     required: r.required_level, current: r.current_level, lastAssessed: r.last_assessed,
     employeeName: r.employee_name, department: r.department, skillName: r.skill_name, category: r.category,
+    qualificationStatus: r.qualification_status || "Not Started", assessor: r.assessor,
+    assessmentDate: r.assessment_date, nextReviewDate: r.next_review_date,
+    qualRemarks: r.qual_remarks, evidenceNote: r.evidence_note,
   })));
 });
 
-// GET /api/skill-matrix/gap-analysis — derived: only rows where current < required
+// GET /api/skill-matrix/gap-analysis — derived: only rows where current < required, for one year
 router.get("/gap-analysis", requireAuth, async (req, res) => {
   const scope = await scopeForUser(req.user);
+  const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
   const [rows] = await pool.query(
     `SELECT sm.*, e.name AS employee_name, e.department, s.name AS skill_name, s.category
      FROM skill_matrix sm
      JOIN employees e ON e.id = sm.employee_id
      JOIN skills s ON s.id = sm.skill_id
-     WHERE sm.current_level < sm.required_level`
+     WHERE sm.current_level < sm.required_level AND sm.year = ?`,
+    [year]
   );
   const filtered = (scope ? rows.filter((r) => scope.has(r.employee_id)) : rows)
     .map((r) => ({
@@ -46,23 +54,19 @@ router.get("/gap-analysis", requireAuth, async (req, res) => {
   res.json(filtered);
 });
 
-// PUT /api/skill-matrix  body: { employeeId, skillId, field: "required"|"current", value }
-// Managers can only update "current" and only for their own team (enforced here, mirroring the
-// local app's rule) — that permission logic is unchanged; every successful change is now also
-// logged to the shared audit trail with the before/after proficiency level.
+// PUT /api/skill-matrix  body: { employeeId, skillId, field: "required"|"current", value, year }
+// Managers and Admin/HR can both set Required and Current — Managers are restricted to their own
+// team. Every change is logged with the employee/skill/year and the before → after level.
 router.put("/", requireAuth, async (req, res) => {
   const { employeeId, skillId, field, value } = req.body;
+  const year = req.body.year || new Date().getFullYear();
   if (!["required", "current"].includes(field)) return res.status(400).json({ error: "Invalid field." });
 
   if (req.user.role === "User") return res.status(403).json({ error: "View only." });
   if (req.user.role === "Manager") {
-    if (field === "required") return res.status(403).json({ error: "Managers can update Current proficiency only." });
     const scope = await scopeForUser(req.user);
     if (!scope.has(employeeId)) return res.status(403).json({ error: "Not your team member." });
   }
-
-  const column = field === "required" ? "required_level" : "current_level";
-  const [existing] = await pool.query(`SELECT * FROM skill_matrix WHERE employee_id = ? AND skill_id = ?`, [employeeId, skillId]);
 
   const [nameRows] = await pool.query(
     `SELECT e.name AS employee_name, s.name AS skill_name FROM employees e, skills s WHERE e.id = ? AND s.id = ?`,
@@ -71,33 +75,135 @@ router.put("/", requireAuth, async (req, res) => {
   const names = nameRows[0] || { employee_name: employeeId, skill_name: skillId };
   const label = (v) => PROFICIENCY_LABELS[v] ?? v;
 
-  let matrixId;
+  const column = field === "required" ? "required_level" : "current_level";
+  const [existing] = await pool.query(`SELECT id, required_level, current_level FROM skill_matrix WHERE employee_id = ? AND skill_id = ? AND year = ?`, [employeeId, skillId, year]);
   if (existing[0]) {
-    matrixId = existing[0].id;
-    const oldValue = existing[0][column];
+    const oldValue = field === "required" ? existing[0].required_level : existing[0].current_level;
     const extra = field === "current" ? ", last_assessed = CURDATE()" : "";
-    await pool.query(`UPDATE skill_matrix SET ${column} = ? ${extra} WHERE id = ?`, [value, matrixId]);
+    await pool.query(`UPDATE skill_matrix SET ${column} = ? ${extra} WHERE id = ?`, [value, existing[0].id]);
     if (oldValue !== value) {
       await logAudit(req, {
-        entityType: "skillMatrix", entityId: matrixId, action: "updated",
-        summary: `${names.employee_name} — ${names.skill_name}: ${field === "required" ? "Required" : "Current"} level ${label(oldValue)} → ${label(value)}`,
+        entityType: "skillMatrix", entityId: existing[0].id, action: "updated",
+        summary: `${names.employee_name} — ${names.skill_name} (${year}): ${field === "required" ? "Required" : "Current"} level ${label(oldValue)} → ${label(value)}`,
         changes: { [column]: { from: oldValue, to: value } },
       });
     }
   } else {
-    matrixId = uuidv4();
+    const id = uuidv4();
     const requiredVal = field === "required" ? value : 3;
     const currentVal = field === "current" ? value : 0;
     await pool.query(
-      `INSERT INTO skill_matrix (id, employee_id, skill_id, required_level, current_level, last_assessed) VALUES (?,?,?,?,?,CURDATE())`,
-      [matrixId, employeeId, skillId, requiredVal, currentVal]
+      `INSERT INTO skill_matrix (id, employee_id, skill_id, year, required_level, current_level, last_assessed) VALUES (?,?,?,?,?,?,CURDATE())`,
+      [id, employeeId, skillId, year, requiredVal, currentVal]
     );
     await logAudit(req, {
-      entityType: "skillMatrix", entityId: matrixId, action: "created",
-      summary: `${names.employee_name} — ${names.skill_name}: added to matrix (Required: ${label(requiredVal)}, Current: ${label(currentVal)})`,
+      entityType: "skillMatrix", entityId: id, action: "created",
+      summary: `${names.employee_name} — ${names.skill_name} (${year}): added to matrix (Required: ${label(requiredVal)}, Current: ${label(currentVal)})`,
     });
   }
   res.json({ ok: true });
+});
+
+// PUT /api/skill-matrix/qualification  body: { employeeId, skillId, year, qualificationStatus, assessor,
+// assessmentDate, nextReviewDate, qualRemarks, evidenceNote }
+// Same permission rule as the level-setting endpoint above: Admin/HR any employee, Manager own
+// team only. This is the actual Qualification & Evidence workflow — every field-level change
+// (status, assessor, dates, remarks, evidence) is logged with a full before/after diff, since
+// this is exactly the kind of record a regulatory audit would want a trail for.
+router.put("/qualification", requireAuth, async (req, res) => {
+  const { employeeId, skillId, qualificationStatus, assessor, assessmentDate, nextReviewDate, qualRemarks, evidenceNote } = req.body;
+  const year = req.body.year || new Date().getFullYear();
+  const validStatuses = ["Not Started", "Trained", "Assessed", "Qualified", "Authorized"];
+  if (qualificationStatus && !validStatuses.includes(qualificationStatus)) return res.status(400).json({ error: "Invalid qualification status." });
+
+  if (req.user.role === "User") return res.status(403).json({ error: "View only." });
+  if (req.user.role === "Manager") {
+    const scope = await scopeForUser(req.user);
+    if (!scope.has(employeeId)) return res.status(403).json({ error: "Not your team member." });
+  }
+
+  const [nameRows] = await pool.query(
+    `SELECT e.name AS employee_name, s.name AS skill_name FROM employees e, skills s WHERE e.id = ? AND s.id = ?`,
+    [employeeId, skillId]
+  );
+  const names = nameRows[0] || { employee_name: employeeId, skill_name: skillId };
+
+  const [existing] = await pool.query(`SELECT * FROM skill_matrix WHERE employee_id = ? AND skill_id = ? AND year = ?`, [employeeId, skillId, year]);
+  const newVals = { qualificationStatus: qualificationStatus || "Not Started", assessor: assessor || null, assessmentDate: assessmentDate || null, nextReviewDate: nextReviewDate || null, qualRemarks: qualRemarks || null, evidenceNote: evidenceNote || null };
+  const fieldMap = { qualificationStatus: "qualification_status", assessor: "assessor", assessmentDate: "assessment_date", nextReviewDate: "next_review_date", qualRemarks: "qual_remarks", evidenceNote: "evidence_note" };
+
+  if (existing[0]) {
+    await pool.query(
+      `UPDATE skill_matrix SET qualification_status=?, assessor=?, assessment_date=?, next_review_date=?, qual_remarks=?, evidence_note=? WHERE id=?`,
+      [newVals.qualificationStatus, newVals.assessor, newVals.assessmentDate, newVals.nextReviewDate, newVals.qualRemarks, newVals.evidenceNote, existing[0].id]
+    );
+    const changes = {};
+    for (const [jsonKey, dbKey] of Object.entries(fieldMap)) {
+      const oldStr = existing[0][dbKey] === null || existing[0][dbKey] === undefined ? "" : String(existing[0][dbKey]);
+      const newStr = newVals[jsonKey] === null || newVals[jsonKey] === undefined ? "" : String(newVals[jsonKey]);
+      if (oldStr !== newStr) changes[jsonKey] = { from: existing[0][dbKey] ?? null, to: newVals[jsonKey] ?? null };
+    }
+    if (Object.keys(changes).length) {
+      const summary = Object.keys(changes).map((k) => `${k}: "${changes[k].from ?? "—"}" → "${changes[k].to ?? "—"}"`).join("; ");
+      await logAudit(req, {
+        entityType: "skillMatrixQualification", entityId: existing[0].id, action: "updated",
+        summary: `${names.employee_name} — ${names.skill_name} (${year}): ${summary}`, changes,
+      });
+    }
+  } else {
+    const id = uuidv4();
+    await pool.query(
+      `INSERT INTO skill_matrix (id, employee_id, skill_id, year, required_level, current_level, qualification_status, assessor, assessment_date, next_review_date, qual_remarks, evidence_note)
+       VALUES (?,?,?,?,3,0,?,?,?,?,?,?)`,
+      [id, employeeId, skillId, year, newVals.qualificationStatus, newVals.assessor, newVals.assessmentDate, newVals.nextReviewDate, newVals.qualRemarks, newVals.evidenceNote]
+    );
+    await logAudit(req, {
+      entityType: "skillMatrixQualification", entityId: id, action: "created",
+      summary: `${names.employee_name} — ${names.skill_name} (${year}): qualification record started (${newVals.qualificationStatus})`,
+    });
+  }
+  res.json({ ok: true });
+});
+
+// GET /api/skill-matrix/years — every year that has data, for the year switcher
+router.get("/years", requireAuth, async (req, res) => {
+  const [rows] = await pool.query(`SELECT DISTINCT year FROM skill_matrix ORDER BY year`);
+  res.json(rows.map((r) => r.year));
+});
+
+// POST /api/skill-matrix/start-new-year  body: { fromYear, toYear }
+// Copies each employee/skill's Required level into a fresh row for the new year, with
+// Current reset to None — ready for reassessment. Skips any pair that already has a row
+// for toYear, so this is safe to run more than once. Admin/HR only.
+// Logged as ONE summary audit entry for the whole rollover (not one row per employee/skill
+// pair) — this is a bulk mechanical copy operation, not a set of individually-meaningful HR
+// decisions, so a single entry naming the count and who triggered it gives the right level of
+// audit detail without flooding the trail with hundreds of near-identical rows.
+router.post("/start-new-year", requireAuth, async (req, res) => {
+  if (!["Admin", "HR"].includes(req.user.role)) return res.status(403).json({ error: "Admin or HR only." });
+  const fromYear = Number(req.body.fromYear);
+  const toYear = Number(req.body.toYear);
+  if (!fromYear || !toYear) return res.status(400).json({ error: "fromYear and toYear are required." });
+
+  const [fromRows] = await pool.query(`SELECT employee_id, skill_id, required_level FROM skill_matrix WHERE year = ?`, [fromYear]);
+  const [existingToRows] = await pool.query(`SELECT employee_id, skill_id FROM skill_matrix WHERE year = ?`, [toYear]);
+  const existingSet = new Set(existingToRows.map((r) => `${r.employee_id}|${r.skill_id}`));
+
+  let created = 0;
+  for (const r of fromRows) {
+    const key = `${r.employee_id}|${r.skill_id}`;
+    if (existingSet.has(key)) continue;
+    await pool.query(
+      `INSERT INTO skill_matrix (id, employee_id, skill_id, year, required_level, current_level, last_assessed) VALUES (?,?,?,?,?,0,NULL)`,
+      [uuidv4(), r.employee_id, r.skill_id, toYear, r.required_level]
+    );
+    created++;
+  }
+  await logAudit(req, {
+    entityType: "skillMatrix", entityId: `rollover-${fromYear}-${toYear}`, action: "yearRollover",
+    summary: `Skill Matrix rolled over from ${fromYear} to ${toYear}: ${created} employee/skill pairs created`,
+  });
+  res.json({ created });
 });
 
 module.exports = router;
