@@ -1075,6 +1075,28 @@ async function runStartupMigrations() {
        JSON_ARRAY('Supervisors', 'Managers') AS recommended_audience,
        0 AS gmp_related, 0 AS certificate_available, 1 AS active, 66 AS display_order, 'System (50-course QLU library import)' AS created_by
      ) AS tmp WHERE NOT EXISTS (SELECT 1 FROM external_learning_resources WHERE external_url = 'https://www.mygreatlearning.com/academy/learn-for-free/courses/performance-management')`,
+    // QLU AI Assistant — lightweight conversation history. Deliberately NOT a separate
+    // AI_TOOL_LOG table (per the user's own architecture doc) — every tool call the assistant
+    // makes is logged through the SAME shared audit_log/logAudit() used everywhere else in the
+    // app, entityType "aiToolCall", so it shows up in the existing Audit Trail screen for free
+    // rather than needing a whole second audit UI just for AI actions.
+    `CREATE TABLE IF NOT EXISTS ai_conversations (
+       id VARCHAR(36) PRIMARY KEY,
+       employee_id VARCHAR(36) NOT NULL,
+       started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+       INDEX idx_ai_conv_employee (employee_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS ai_messages (
+       id VARCHAR(36) PRIMARY KEY,
+       conversation_id VARCHAR(36) NOT NULL,
+       role ENUM('user','assistant') NOT NULL,
+       content TEXT NOT NULL,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE,
+       INDEX idx_ai_msg_conv (conversation_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ];
   for (const sql of migrations) {
     try {

@@ -34,6 +34,17 @@ const surveyRoutes = require("./routes/survey");
 const reportsRoutes = require("./routes/reports");
 const auditLogRoutes = require("./routes/auditLog");
 const externalLearningRoutes = require("./routes/externalLearning");
+const aiRoutes = require("./routes/ai");
+// The mail route depends on the "nodemailer" npm package, which may not be installed yet
+// (pending a package.json update) — load it defensively so a missing dependency disables just
+// this one feature instead of crashing the entire server on startup. See project notes, lesson
+// #9: this exact failure mode (one missing require took the whole app down) has happened before.
+let mailRoutes = null;
+try {
+  mailRoutes = require("./routes/mail");
+} catch (err) {
+  console.error("Mail route not loaded (probably missing the 'nodemailer' dependency in package.json) — email sending is disabled until this is fixed:", err.message);
+}
 
 const app = express();
 
@@ -66,6 +77,8 @@ app.use("/api/survey", surveyRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/audit-log", auditLogRoutes);
 app.use("/api/external-learning", externalLearningRoutes);
+app.use("/api/ai", aiRoutes);
+if (mailRoutes) app.use("/api/mail", mailRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "QLC server" }));
 
