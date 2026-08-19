@@ -212,4 +212,20 @@ router.put("/progress/:id/verify", requireAuth, requireRole("Admin", "HR", "QA")
   res.json({ ok: true });
 });
 
+// GET /api/external-learning/popular — the 10 most-engaged-with resources (anyone who's moved
+// past "Not Started" counts once). Aggregate counts only — no employee-level detail — so this is
+// visible to every signed-in user, not just Admin/HR/QA, since it's just "what's popular" rather
+// than anyone's individual learning record.
+router.get("/popular", requireAuth, async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT resource_id, COUNT(*) AS engagement_count
+     FROM external_learning_progress
+     WHERE status != 'Not Started'
+     GROUP BY resource_id
+     ORDER BY engagement_count DESC
+     LIMIT 10`
+  );
+  res.json(rows.map((r) => ({ resourceId: r.resource_id, count: r.engagement_count })));
+});
+
 module.exports = router;
