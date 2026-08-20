@@ -122,7 +122,7 @@ const FAQ = [
   { keywords: ["skill matrix", "what is skill matrix"],
     answer: "The Skill Matrix tracks your Required vs Current proficiency level for each skill relevant to your role. A gap means your current level is below what's required — ask me \"do I have any skill gaps\" to see yours." },
   { keywords: ["contact", "help", "support", "who do i ask", "it support"],
-    answer: "For anything I can't help with, reach out to itsupport@questhealthcare.co.in, or speak with your manager or HR directly." },
+    answer: "For anything I can't help with, reach out to qlu@questhealthcare.co.in, or speak with your manager or HR directly." },
   { keywords: ["hello", "hi ", "hey"],
     answer: "Hello! I can help with your training, skills, SOPs, and learning resources. Try asking about your pending training, or say \"find a course on...\" followed by a topic." },
 ];
