@@ -1097,6 +1097,90 @@ async function runStartupMigrations() {
        FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE,
        INDEX idx_ai_msg_conv (conversation_id)
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // ---- Skill Bank & Skill Matrix redesign (per user's spec) ----
+    // Every change below is ADDITIVE: existing columns are kept exactly as they are, and every
+    // new column either has a safe default or gets backfilled from the existing data so nothing
+    // currently reading the old shape can break. This matters more than usual here — a prior
+    // round on this exact module (skillMatrix.js) turned out to have grown independently of what
+    // was shared, so this is deliberately built to not need to know what the live frontend does.
+
+    // Skill Master: expanded fields, all nullable/defaulted so existing rows and existing
+    // POST/PUT calls (which don't send these fields) keep working unchanged. One ALTER per
+    // column, matching every other migration in this file — relies on the try/catch wrapper
+    // above for idempotency (fails harmlessly with "Duplicate column" on re-run) rather than
+    // "IF NOT EXISTS" syntax, which isn't used anywhere else in this codebase and hasn't been
+    // proven against this database version.
+    `ALTER TABLE skills ADD COLUMN sub_category VARCHAR(255) NULL`,
+    `ALTER TABLE skills ADD COLUMN description TEXT NULL`,
+    `ALTER TABLE skills ADD COLUMN skill_type ENUM('Core','Functional','Technical','Future Skill') NOT NULL DEFAULT 'Functional'`,
+    `ALTER TABLE skills ADD COLUMN status ENUM('Active','Inactive') NOT NULL DEFAULT 'Active'`,
+    `ALTER TABLE skills ADD COLUMN version INT NOT NULL DEFAULT 1`,
+    `ALTER TABLE skills ADD COLUMN remarks TEXT NULL`,
+    `ALTER TABLE skills ADD COLUMN created_by VARCHAR(255) NULL`,
+    `ALTER TABLE skills ADD COLUMN created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE skills ADD COLUMN modified_by VARCHAR(255) NULL`,
+    `ALTER TABLE skills ADD COLUMN modified_date TIMESTAMP NULL`,
+
+    // Proficiency Level Master — configurable instead of hard-coded, per the spec's explicit
+    // recommendation. Deliberately kept on the SAME 0-4 numeric range your data already uses
+    // (not the spec's literal 1-5) so every existing stored proficiency value keeps its exact
+    // meaning — this is a labeling/configurability upgrade, not a renumbering that would require
+    // touching every historical skill_matrix row.
+    `CREATE TABLE IF NOT EXISTS proficiency_levels (
+       id VARCHAR(36) PRIMARY KEY,
+       level_number TINYINT NOT NULL UNIQUE,
+       level_name VARCHAR(100) NOT NULL,
+       level_description TEXT,
+       status ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
+       display_order INT NOT NULL DEFAULT 0
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `INSERT INTO proficiency_levels (id, level_number, level_name, level_description, display_order)
+     SELECT * FROM (SELECT UUID() AS id, 0 AS level_number, 'Beginner' AS level_name, 'Basic awareness and requires significant guidance' AS level_description, 0 AS display_order) AS tmp
+     WHERE NOT EXISTS (SELECT 1 FROM proficiency_levels WHERE level_number = 0)`,
+    `INSERT INTO proficiency_levels (id, level_number, level_name, level_description, display_order)
+     SELECT * FROM (SELECT UUID() AS id, 1 AS level_number, 'Basic' AS level_name, 'Can perform simple tasks with guidance' AS level_description, 1 AS display_order) AS tmp
+     WHERE NOT EXISTS (SELECT 1 FROM proficiency_levels WHERE level_number = 1)`,
+    `INSERT INTO proficiency_levels (id, level_number, level_name, level_description, display_order)
+     SELECT * FROM (SELECT UUID() AS id, 2 AS level_number, 'Intermediate' AS level_name, 'Can independently perform regular tasks' AS level_description, 2 AS display_order) AS tmp
+     WHERE NOT EXISTS (SELECT 1 FROM proficiency_levels WHERE level_number = 2)`,
+    `INSERT INTO proficiency_levels (id, level_number, level_name, level_description, display_order)
+     SELECT * FROM (SELECT UUID() AS id, 3 AS level_number, 'Advanced' AS level_name, 'Can handle complex tasks and guide others' AS level_description, 3 AS display_order) AS tmp
+     WHERE NOT EXISTS (SELECT 1 FROM proficiency_levels WHERE level_number = 3)`,
+    `INSERT INTO proficiency_levels (id, level_number, level_name, level_description, display_order)
+     SELECT * FROM (SELECT UUID() AS id, 4 AS level_number, 'Expert' AS level_name, 'Subject matter expert who can lead, design and coach' AS level_description, 4 AS display_order) AS tmp
+     WHERE NOT EXISTS (SELECT 1 FROM proficiency_levels WHERE level_number = 4)`,
+
+    // Skill Matrix: add Minimum/Target/Maximum alongside the existing required_level — NOT
+    // replacing it. required_level is left fully intact and still updated going forward (see
+    // skillMatrix.js), so any existing code path reading it keeps working exactly as before.
+    // Every existing row is backfilled so min=target=max=its old required_level, meaning no
+    // employee's gap status changes the moment this migration runs — widening a range is now
+    // possible, but nothing is auto-widened.
+    `ALTER TABLE skill_matrix ADD COLUMN min_required_level TINYINT NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN target_level TINYINT NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN max_required_level TINYINT NULL`,
+    `ALTER TABLE skill_matrix ADD COLUMN assessment_source VARCHAR(100) NULL`,
+    `UPDATE skill_matrix SET min_required_level = required_level, target_level = required_level, max_required_level = required_level WHERE min_required_level IS NULL`,
+
+    // Skill Assessment History — "where was the employee, where are they now" per the spec.
+    // Purpose-built and separate from the generic audit_log (which already captures this as an
+    // audit entry) because this is meant to be easy to query/chart per skill over time without
+    // parsing generic diff JSON. No FK to skills — a history row must survive a skill later being
+    // edited or deactivated, same philosophy as audit_log surviving deletion of what it describes.
+    `CREATE TABLE IF NOT EXISTS skill_assessment_history (
+       id VARCHAR(36) PRIMARY KEY,
+       employee_id VARCHAR(36) NOT NULL,
+       skill_id VARCHAR(36) NOT NULL,
+       previous_level TINYINT NULL,
+       new_level TINYINT NOT NULL,
+       assessment_source VARCHAR(100) NULL,
+       assessed_by VARCHAR(255) NULL,
+       assessment_date DATE NULL,
+       comments TEXT NULL,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+       INDEX idx_sah_employee_skill (employee_id, skill_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ];
   for (const sql of migrations) {
     try {
